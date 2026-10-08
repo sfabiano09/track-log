@@ -1,0 +1,615 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Track Log</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Track Log">
+<meta name="theme-color" content="#F3F4F5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#121416" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Layout: one column, timing-slip rows; big tap targets for gloves and sun. Sticky-note yellow marks "add" and the active choice. */
+:root{
+  --bg:#F3F4F5; --surface:#FFFFFF; --ink:#15181B; --muted:#5E656C; --line:#D9DDE1;
+  --note:#FFD43B; --note-ink:#1A1C1E; --note-soft:#FFF4C2;
+  --good:#1E7F4E; --warn:#B4500A; --bad:#B42318;
+  --display:"Barlow Condensed","Arial Narrow","Roboto Condensed",system-ui,sans-serif;
+  --body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --r:10px;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#121416; --surface:#1C1F22; --ink:#ECEEF0; --muted:#9AA2AA; --line:#33383D;
+  --note:#FFD43B; --note-ink:#1A1C1E; --note-soft:#3A3315;
+  --good:#5FD39A; --warn:#F2A35E; --bad:#FF8A80; color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:16px/1.4 var(--body);
+  padding:env(safe-area-inset-top,0) max(16px,env(safe-area-inset-right,0)) calc(96px + env(safe-area-inset-bottom,0)) max(16px,env(safe-area-inset-left,0));
+  font-variant-numeric:tabular-nums;-webkit-tap-highlight-color:transparent}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--note);outline-offset:2px}
+[hidden]{display:none!important}
+.label{font:600 13px/1 var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+
+/* header */
+header.top{display:flex;align-items:center;gap:12px;padding-block:14px 10px}
+.event{flex:1;min-width:0}
+.event h1{margin:0;font:700 30px/1 var(--display);letter-spacing:.01em;text-wrap:balance}
+.event .sub{color:var(--muted);font-size:15px;margin-top:3px}
+.iconbtn{width:46px;height:46px;border-radius:50%;border:1px solid var(--line);background:var(--surface);display:grid;place-items:center}
+.iconbtn svg{width:22px;height:22px;stroke:var(--ink);fill:none;stroke-width:2}
+
+.days{display:flex;gap:8px;overflow-x:auto;padding-block:4px 12px;scrollbar-width:none}
+.days::-webkit-scrollbar{display:none}
+.chip{flex:none;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:8px 14px;font:600 15px/1 var(--display);letter-spacing:.04em}
+.chip[aria-pressed="true"]{background:var(--note);border-color:var(--note);color:var(--note-ink)}
+
+.add{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}
+.add button{border:0;border-radius:var(--r);background:var(--note);color:var(--note-ink);padding:14px 4px 12px;display:flex;flex-direction:column;align-items:center;gap:6px;font:700 16px/1 var(--display);letter-spacing:.04em;text-transform:uppercase;box-shadow:0 1px 0 rgba(0,0,0,.12)}
+.add button svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:2}
+.add button:active{transform:translateY(1px)}
+
+/* entry list */
+.list{display:flex;flex-direction:column;border-top:1px solid var(--line)}
+.row{display:grid;grid-template-columns:62px 1fr;gap:10px;padding:12px 2px;border-bottom:1px solid var(--line);background:none;border-left:0;border-right:0;border-top:0;text-align:left;width:100%}
+.row .t{font:700 18px/1.1 var(--display)}
+.row .ty{display:block;margin-top:4px;font:600 11px/1 var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.row .main{min-width:0}
+.row .head{font:600 17px/1.2 var(--display);letter-spacing:.02em}
+.row .head .tag{display:inline-block;background:var(--ink);color:var(--bg);border-radius:4px;padding:1px 6px;margin-right:6px;font-size:14px}
+.row .nums{color:var(--ink);font-size:14px;margin-top:2px;overflow-wrap:anywhere}
+.row .nums b{font-weight:600;color:var(--muted);font-size:12px;margin-right:2px}
+.row .note{color:var(--muted);font-size:14px;margin-top:2px;overflow-wrap:anywhere}
+.row.run{background:linear-gradient(90deg,var(--note-soft),transparent 70%)}
+.empty{padding:28px 6px;color:var(--muted);text-align:center}
+.empty strong{display:block;color:var(--ink);font:700 20px/1.2 var(--display);margin-bottom:6px}
+
+/* bottom bar */
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);
+  padding:10px max(16px,env(safe-area-inset-right,0)) calc(10px + env(safe-area-inset-bottom,0)) max(16px,env(safe-area-inset-left,0));display:flex;gap:10px;align-items:center}
+.bar .info{flex:1;min-width:0;font-size:13px;color:var(--muted)}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:12px 16px;font:700 16px/1 var(--display);letter-spacing:.05em;text-transform:uppercase;min-height:48px}
+.btn.primary{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.btn.note{background:var(--note);color:var(--note-ink);border-color:var(--note)}
+.btn.danger{color:var(--bad)}
+.btn:disabled{opacity:.45}
+
+/* sheet (form / settings) */
+.sheet{position:fixed;inset:0;background:var(--bg);overflow-y:auto;z-index:10;
+  padding:env(safe-area-inset-top,0) max(16px,env(safe-area-inset-right,0)) calc(110px + env(safe-area-inset-bottom,0)) max(16px,env(safe-area-inset-left,0))}
+.sheet header{display:flex;align-items:center;gap:10px;padding-block:14px 8px;position:sticky;top:0;background:var(--bg);z-index:2}
+.sheet header h2{flex:1;margin:0;font:700 26px/1 var(--display)}
+.sheet .actions{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);display:flex;gap:10px;
+  padding:10px max(16px,env(safe-area-inset-right,0)) calc(10px + env(safe-area-inset-bottom,0)) max(16px,env(safe-area-inset-left,0));z-index:3}
+.sheet .actions .btn{flex:1}
+fieldset{border:0;margin:0 0 18px;padding:0}
+legend{padding:0;margin-bottom:8px}
+.sec{display:flex;justify-content:space-between;align-items:center;margin:18px 0 8px}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.grid.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.f{display:flex;flex-direction:column;gap:4px;min-width:0}
+.f label{font:600 12px/1 var(--display);letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.f input,.f select,.f textarea{width:100%;min-height:50px;border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:10px 10px;font-size:20px;font-weight:600}
+.f textarea{font-size:17px;font-weight:500;min-height:76px;resize:vertical}
+.f input.auto{background:var(--note-soft)}
+.station{border:1px solid var(--line);border-radius:var(--r);background:var(--surface);padding:10px;display:flex;flex-direction:column;gap:8px}
+.station .label{color:var(--ink);font-size:15px}
+.station .f input{background:var(--bg)}
+.stations{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.station.wide,.station.wide2{grid-column:1/-1}
+.station.wide .picks{flex-wrap:wrap}
+.picks{display:flex;flex-wrap:wrap;gap:6px}
+.pick{border:1px solid var(--line);background:var(--surface);border-radius:8px;min-width:48px;min-height:44px;padding:8px 10px;font:700 17px/1 var(--display);letter-spacing:.03em}
+.pick[aria-pressed="true"]{background:var(--note);color:var(--note-ink);border-color:var(--note)}
+.picks.small .pick{min-width:40px;min-height:38px;font-size:15px;padding:6px 8px}
+.status{font-size:14px;color:var(--muted);min-height:20px}
+.status.ok{color:var(--good)} .status.err{color:var(--bad)}
+.help{color:var(--muted);font-size:14px;margin:4px 0 0}
+.preview{white-space:pre-wrap;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px;font-size:15px}
+.toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:12px 18px;border-radius:999px;font-weight:600;z-index:50;max-width:calc(100% - 32px);text-align:center}
+.confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="event">
+    <h1 id="evTrack">Track Log</h1>
+    <div class="sub" id="evSub"></div>
+  </div>
+  <button class="iconbtn" id="openSettings" aria-label="Settings">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+  </button>
+</header>
+
+<nav class="days" id="days" aria-label="Days"></nav>
+
+<div class="add">
+  <button data-new="run"><svg viewBox="0 0 24 24"><path d="M4 18h16M6 18l2-6h8l2 6M9 12V8h6v4"/></svg>Run</button>
+  <button data-new="track"><svg viewBox="0 0 24 24"><path d="M12 3v18M5 7h4M5 12h4M5 17h4M15 7h4M15 12h4M15 17h4"/></svg>Track</button>
+  <button data-new="weather"><svg viewBox="0 0 24 24"><circle cx="9" cy="9" r="3.5"/><path d="M9 2v2M2 9h2M4 4l1.4 1.4M14 4l-1.4 1.4M8 20h9a4 4 0 0 0 0-8 5 5 0 0 0-8.6 2.4A3 3 0 0 0 8 20z"/></svg>Weather</button>
+  <button data-new="work"><svg viewBox="0 0 24 24"><path d="M14 4l6 6-9 9H5v-6z M12 6l6 6"/></svg>Work</button>
+</div>
+
+<div class="list" id="list"></div>
+
+<div class="bar">
+  <div class="info" id="barInfo"></div>
+  <button class="btn primary" id="copyDay">Copy for Excel</button>
+</div>
+
+<!-- Entry form -->
+<section class="sheet" id="form" hidden aria-labelledby="formTitle">
+  <header>
+    <h2 id="formTitle">Run</h2>
+    <button class="iconbtn" id="closeForm" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </header>
+
+  <fieldset>
+    <div class="grid">
+      <div class="f"><label for="f_time">Time</label><input id="f_time" type="time"></div>
+      <div class="f" data-show="run work track"><label for="f_run">Run</label><select id="f_run"></select></div>
+      <div class="f" data-show="run track work"><label for="f_lane">Lane</label><select id="f_lane"></select></div>
+    </div>
+  </fieldset>
+
+  <fieldset data-show="run">
+    <legend class="label">Car</legend>
+    <div class="picks" id="carPicks"></div>
+  </fieldset>
+
+  <fieldset data-show="work">
+    <legend class="label">Track work</legend>
+    <div class="picks" id="workPicks"></div>
+  </fieldset>
+
+  <fieldset data-show="run weather track">
+    <div class="sec"><span class="label">Weather</span><button class="btn note" id="pullWx" type="button">Pull weather</button></div>
+    <div class="grid">
+      <div class="f"><label for="f_uv">UV</label><input id="f_uv" inputmode="decimal"></div>
+      <div class="f"><label for="f_solar">Solar</label><input id="f_solar" inputmode="decimal"></div>
+      <div class="f"><label for="f_cc">Cloud %</label><input id="f_cc" inputmode="decimal"></div>
+      <div class="f"><label for="f_air">Air °F</label><input id="f_air" inputmode="decimal"></div>
+      <div class="f"><label for="f_track">Track °F</label><input id="f_track" inputmode="decimal"></div>
+    </div>
+    <div class="status" id="wxStatus" aria-live="polite"></div>
+  </fieldset>
+
+  <fieldset data-show="run track">
+    <div class="sec"><span class="label">KEG readings</span></div>
+    <div class="stations">
+      <div class="station wide">
+        <span class="label">Starting line</span>
+        <div class="grid two"><div class="f"><label for="f_slKeg">KEG</label><input id="f_slKeg" inputmode="decimal"></div><div class="f"><label for="f_slLoc">Location</label><input id="f_slLoc" placeholder='e.g. 1"'></div></div>
+        <div class="f"><label>Grade</label><div class="picks small" data-grade="slGrade"></div></div>
+      </div>
+      <div class="station wide2">
+        <span class="label">10 ft</span>
+        <div class="grid two"><div class="f"><label for="f_k10">KEG</label><input id="f_k10" inputmode="decimal"></div><div class="f"><label for="f_push">Push</label><input id="f_push" inputmode="decimal"></div></div>
+      </div>
+      <div class="station">
+        <span class="label">60 ft</span>
+        <div class="f"><label for="f_k60">KEG</label><input id="f_k60" inputmode="decimal"></div>
+      </div>
+      <div class="station">
+        <span class="label">80 ft</span>
+        <div class="f"><label for="f_k80">KEG</label><input id="f_k80" inputmode="decimal"></div>
+      </div>
+      <div class="station wide">
+        <span class="label">125 ft</span>
+        <div class="f"><label for="f_k125">KEG</label><input id="f_k125" inputmode="decimal"></div>
+        <div class="f"><label>Grade</label><div class="picks small" data-grade="g125"></div></div>
+      </div>
+      <div class="station">
+        <span class="label">Sticky</span>
+        <div class="f"><label for="f_sticky">Reading</label><input id="f_sticky" inputmode="decimal"></div>
+      </div>
+      <div class="station">
+        <span class="label">Nate</span>
+        <div class="f"><label for="f_nate">Reading</label><input id="f_nate" inputmode="decimal"></div>
+      </div>
+      <div class="station wide">
+        <span class="label">330 ft</span>
+        <div class="f"><label for="f_k330">KEG</label><input id="f_k330" inputmode="decimal"></div>
+        <div class="f"><label>Grade</label><div class="picks small" data-grade="g330"></div></div>
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset data-show="run">
+    <div class="sec"><span class="label">Result</span></div>
+    <div class="grid two">
+      <div class="f"><label for="f_et">ET</label><input id="f_et" inputmode="decimal" placeholder="3.91"></div>
+      <div class="f"><label for="f_mph">MPH</label><input id="f_mph" inputmode="decimal" placeholder="332"></div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <div class="f"><label for="f_notes">Notes</label><textarea id="f_notes" placeholder="Track feel, sky, where it was sprayed…"></textarea></div>
+    <div class="picks small" id="notePicks" style="margin-top:8px"></div>
+  </fieldset>
+
+  <fieldset id="entryTools" hidden>
+    <div class="sec"><span class="label">Text message</span></div>
+    <div class="preview" id="msgPreview"></div>
+    <div class="confirm" style="margin-top:8px">
+      <button class="btn note" type="button" id="textCrew">Text crew</button>
+      <button class="btn" type="button" id="shareMsg">Share…</button>
+      <button class="btn" type="button" id="copyMsg">Copy</button>
+    </div>
+    <div class="sec"><span class="label">Remove</span></div>
+    <div class="confirm" id="delArea">
+      <button class="btn danger" type="button" id="delEntry">Delete entry</button>
+    </div>
+  </fieldset>
+
+  <div class="actions">
+    <button class="btn" type="button" id="cancelForm">Cancel</button>
+    <button class="btn primary" type="button" id="saveEntry">Save</button>
+  </div>
+</section>
+
+<!-- Settings -->
+<section class="sheet" id="settings" hidden aria-labelledby="setTitle">
+  <header>
+    <h2 id="setTitle">Settings</h2>
+    <button class="iconbtn" id="closeSettings" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </header>
+
+  <fieldset>
+    <legend class="label">Event</legend>
+    <div class="f"><label for="s_track">Track</label><select id="s_track"></select></div>
+    <div class="grid two" style="margin-top:8px">
+      <div class="f"><label for="s_lat">Latitude</label><input id="s_lat" inputmode="decimal"></div>
+      <div class="f"><label for="s_lon">Longitude</label><input id="s_lon" inputmode="decimal"></div>
+    </div>
+    <div class="confirm" style="margin-top:8px"><button class="btn" type="button" id="useLoc">Use my location</button></div>
+    <p class="help">Weather is pulled for these coordinates. Stand at the starting line and tap "Use my location" the first time at a new track.</p>
+  </fieldset>
+
+  <fieldset>
+    <legend class="label">Tomorrow.io</legend>
+    <div class="f"><label for="s_key">API key</label><input id="s_key" autocomplete="off" autocapitalize="off" spellcheck="false" style="font-size:16px"></div>
+    <div class="confirm" style="margin-top:8px"><button class="btn note" type="button" id="testWx">Test weather</button></div>
+    <div class="preview" id="testOut" hidden style="margin-top:8px"></div>
+    <p class="help">The key stays on this phone. It is never saved anywhere else.</p>
+  </fieldset>
+
+  <fieldset>
+    <legend class="label">Text group</legend>
+    <div class="f"><label for="s_phones">Phone numbers, separated by commas</label><textarea id="s_phones" inputmode="tel" placeholder="317-555-0101, 317-555-0102" style="font-size:17px"></textarea></div>
+  </fieldset>
+
+  <fieldset>
+    <legend class="label">Lists</legend>
+    <div class="f"><label for="s_cars">Cars</label><input id="s_cars" style="font-size:16px"></div>
+    <div class="f" style="margin-top:8px"><label for="s_work">Track work</label><input id="s_work" style="font-size:16px"></div>
+    <div class="f" style="margin-top:8px"><label for="s_notes">Quick notes</label><input id="s_notes" style="font-size:16px"></div>
+    <p class="help">Separate items with commas.</p>
+  </fieldset>
+
+  <fieldset>
+    <legend class="label">Backup</legend>
+    <div class="confirm">
+      <button class="btn" type="button" id="copyBackup">Copy backup</button>
+      <button class="btn" type="button" id="showRestore">Restore</button>
+    </div>
+    <div id="restoreArea" hidden style="margin-top:8px">
+      <div class="f"><label for="s_restore">Paste a backup here</label><textarea id="s_restore" style="font-size:14px"></textarea></div>
+      <button class="btn" type="button" id="doRestore" style="margin-top:8px">Restore from backup</button>
+    </div>
+    <p class="help">Readings are saved on this phone. Paste a backup into the notes app now and then if you want a spare copy.</p>
+  </fieldset>
+
+  <div class="actions">
+    <button class="btn primary" type="button" id="saveSettings">Done</button>
+  </div>
+</section>
+
+<div class="toast" id="toast" hidden role="status"></div>
+
+<script>
+"use strict";
+/* ---------- reference data (from the team's Data tab) ---------- */
+const TRACKS = [
+  ["Gainesville",29.7480,-82.2830],["Phoenix",33.2290,-111.9700],["Pomona",34.0880,-117.7680],
+  ["Charlotte",35.3530,-80.6830],["Valdosta",30.8870,-83.2730],["Joliet",41.4700,-88.0580],
+  ["Budds Creek",38.3700,-76.8300],["Epping",42.9970,-71.0820],["Bristol",36.5160,-82.2580],
+  ["Norwalk",41.2270,-82.5830],["Sonoma",38.1610,-122.4550],["Seattle",47.3220,-122.1460],
+  ["Brainerd",46.4200,-94.2720],["Indy",39.8010,-86.3480],["Martin",42.5370,-85.6480],
+  ["Rockingham",34.9800,-79.6100],["St. Louis",38.6500,-90.1340],["Dallas",32.3600,-96.6940],
+  ["Las Vegas",36.2720,-115.0110]
+];
+const RUNS = ["","Q1","Q2","Q3","Q4","Q5","E1","E2","E3","E4","T1","T2","T3","T4","T5","T6","T7","T8","T9","T10"];
+const LANES = ["","L","R","1","2","3","4"];
+const GRADES = ["A++","A+","A","A-","B+","B","B-","C+","C","C-"];
+const DEF = {
+  cars:"Austin, Matt H, PM, FSS, FC, TF, PSC, TAFC, TAD, TS, FX, TD, PSM",
+  work:"Spray, Scrape, Prep, Delay",
+  notes:"Drag only, 660' - WB, 1320' - 40', 57' - WB, 85' - WB, Light haze, Light cloud"
+};
+const TYPE_NAME = {run:"Run",track:"Track",weather:"Weather",work:"Work"};
+const DAY3 = ["SUN","MON","TUE","WED","THURS","FRI","SAT"];
+
+/* ---------- storage (wrapped: Safari private mode can throw) ---------- */
+const store = {
+  get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},
+  set(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true}catch(e){toast("Couldn't save on this phone. Storage may be full.");return false}}
+};
+let entries = store.get("tl.entries",[]);
+let cfg = Object.assign({track:"St. Louis",lat:null,lon:null,key:"",phones:"",cars:DEF.cars,work:DEF.work,notes:DEF.notes,coords:{}}, store.get("tl.cfg",{}));
+let curDate = todayISO();
+
+/* ---------- helpers ---------- */
+const $ = id => document.getElementById(id);
+function todayISO(d=new Date()){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+function nowHM(){const d=new Date();return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0")}
+function list(s){return String(s||"").split(",").map(x=>x.trim()).filter(Boolean)}
+function dayLabel(iso){const d=new Date(iso+"T12:00:00");return DAY3[d.getDay()]}
+function prettyDate(iso){const d=new Date(iso+"T12:00:00");return d.toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"})}
+function time12(hm){if(!hm)return "";let[h,m]=hm.split(":").map(Number);const ap=h>=12?"PM":"AM";h=h%12||12;return h+":"+String(m).padStart(2,"0")+" "+ap}
+function trackCoords(name){
+  const o=cfg.coords&&cfg.coords[name];if(o)return o;
+  const t=TRACKS.find(t=>t[0]===name);return t?{lat:t[1],lon:t[2]}:null}
+function esc(s){return String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+function has(v){return v!==undefined&&v!==null&&String(v).trim()!==""}
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
+function save(){store.set("tl.entries",entries)}
+let tt;function toast(msg){const t=$("toast");t.textContent=msg;t.hidden=false;clearTimeout(tt);tt=setTimeout(()=>t.hidden=true,2600)}
+
+/* ---------- Excel row: columns A..W in the SAT/SUN tab order ---------- */
+const COLS = ["time","run","lane","car","uv","solar","cc","air","track","slLoc","slKeg","slGrade","k10","push","k60","k80","k125","g125","sticky","k330","g330","nate","notes"];
+function notesText(e){
+  const parts=[];
+  if(has(e.notes))parts.push(e.notes.trim());
+  if(has(e.et)||has(e.mph))parts.push([e.et,has(e.mph)?e.mph+"mph":""].filter(has).join(", "));
+  return parts.join(" / ");
+}
+function excelRow(e){
+  return COLS.map(c=>{
+    let v = c==="time"?time12(e.time): c==="car"?(e.type==="work"?e.work:e.car): c==="notes"?notesText(e): e[c];
+    return has(v)?String(v).replace(/[\t\r\n]+/g," "):"";
+  }).join("\t");
+}
+function dayEntries(iso){return entries.filter(e=>e.date===iso&&e.event===cfg.track).sort((a,b)=>(a.time||"").localeCompare(b.time||""))}
+
+/* ---------- text message ---------- */
+function message(e){
+  const L=[];
+  const head=[cfg.track+" "+dayLabel(e.date), e.run, e.lane&&("Lane "+e.lane), e.type==="work"?e.work:e.car, time12(e.time)].filter(has);
+  if(e.type==="weather")head.splice(1,0,"Weather");
+  if(e.type==="track"&&!e.car)head.splice(1,0,"Track reading");
+  L.push(head.join(" · "));
+  const wx=[has(e.track)&&"Track "+e.track+"°", has(e.air)&&"Air "+e.air+"°", has(e.uv)&&"UV "+e.uv, has(e.solar)&&"Solar "+e.solar, has(e.cc)&&"CC "+e.cc+"%"].filter(Boolean);
+  if(wx.length)L.push(wx.join(" · "));
+  const k=[];
+  if(has(e.slKeg)||has(e.slLoc)||has(e.slGrade))k.push("SL "+[e.slLoc,e.slKeg,e.slGrade].filter(has).join(" "));
+  if(has(e.k10)||has(e.push))k.push("10' "+[e.k10,has(e.push)&&("P"+e.push)].filter(Boolean).join(" "));
+  if(has(e.k60))k.push("60' "+e.k60);
+  if(has(e.k80))k.push("80' "+e.k80);
+  if(has(e.k125)||has(e.g125))k.push("125' "+[e.k125,e.g125].filter(has).join(" "));
+  if(has(e.sticky))k.push("Sticky "+e.sticky);
+  if(has(e.k330)||has(e.g330))k.push("330' "+[e.k330,e.g330].filter(has).join(" "));
+  if(has(e.nate))k.push("Nate "+e.nate);
+  if(k.length)L.push(k.join(" · "));
+  if(has(e.et)||has(e.mph))L.push([e.et,has(e.mph)&&(e.mph+" mph")].filter(Boolean).join(" / "));
+  if(has(e.notes))L.push(e.notes.trim());
+  return L.join("\n");
+}
+function smsHref(body){
+  const nums=list(cfg.phones).map(n=>n.replace(/[^\d+]/g,"")).filter(Boolean);
+  if(!nums.length)return null;
+  if(nums.length===1)return "sms:"+nums[0]+"&body="+encodeURIComponent(body);
+  return "sms://open?addresses="+nums.join(",")+"/&body="+encodeURIComponent(body);
+}
+
+/* ---------- weather (Tomorrow.io) ---------- */
+function cToF(c){return Math.round((c*9/5+32)*10)/10}
+async function tioFetch(lat,lon,fields,timeISO){
+  const p=new URLSearchParams({location:lat+","+lon,fields:fields.join(","),units:"metric",apikey:cfg.key});
+  if(timeISO){const t=new Date(timeISO);t.setMinutes(0,0,0);const e=new Date(t.getTime()+3600e3);
+    p.set("timesteps","1h");p.set("startTime",t.toISOString());p.set("endTime",e.toISOString());}
+  else p.set("timesteps","current");
+  const r=await fetch("https://api.tomorrow.io/v4/timelines?"+p.toString());
+  let j=null;try{j=await r.json()}catch(_){}
+  if(!r.ok){const m=(j&&(j.message||j.type))||("HTTP "+r.status);const err=new Error(m);err.status=r.status;throw err}
+  const iv=j&&j.data&&j.data.timelines&&j.data.timelines[0]&&j.data.timelines[0].intervals;
+  if(!iv||!iv.length)throw new Error("No weather came back for that time.");
+  return iv[0].values;
+}
+async function getWeather(dateISO,hm){
+  if(!cfg.key)throw new Error("Add your Tomorrow.io key in Settings first.");
+  const c=trackCoords(cfg.track);if(!c)throw new Error("Set this track's location in Settings.");
+  let when=null;
+  if(dateISO&&hm){const d=new Date(dateISO+"T"+hm+":00");if(Math.abs(Date.now()-d.getTime())>30*60e3)when=d.toISOString();}
+  const fields=["temperature","cloudCover","uvIndex","solarGHI"];
+  let v, solarOk=true;
+  try{v=await tioFetch(c.lat,c.lon,fields,when)}
+  catch(err){
+    if(err.status===400||err.status===403){ solarOk=false; v=await tioFetch(c.lat,c.lon,fields.filter(f=>f!=="solarGHI"),when) }
+    else throw err;
+  }
+  return {
+    uv: v.uvIndex!=null?v.uvIndex:"",
+    solar: solarOk&&v.solarGHI!=null?Math.round(v.solarGHI):"",
+    cc: v.cloudCover!=null?Math.round(v.cloudCover):"",
+    air: v.temperature!=null?Math.round(cToF(v.temperature)):"",
+    solarOk, past:!!when
+  };
+}
+
+/* ---------- main screen ---------- */
+function render(){
+  $("evTrack").textContent=cfg.track||"Track Log";
+  $("evSub").textContent=prettyDate(curDate);
+  const dates=[...new Set(entries.filter(e=>e.event===cfg.track).map(e=>e.date).concat([todayISO(),curDate]))].sort();
+  $("days").innerHTML=dates.map(d=>`<button class="chip" data-date="${d}" aria-pressed="${d===curDate}">${dayLabel(d)} ${Number(d.slice(8))}</button>`).join("");
+  const rows=dayEntries(curDate);
+  $("list").innerHTML = rows.length? rows.map(rowHTML).join("") :
+    `<div class="empty"><strong>No readings yet for ${dayLabel(curDate)}</strong>Tap Run, Track, Weather or Work above to log the first one.</div>`;
+  $("barInfo").textContent = rows.length? `${rows.length} row${rows.length>1?"s":""} · paste into the ${dayLabel(curDate)} tab` : "Rows copy in your Excel column order";
+  $("copyDay").disabled=!rows.length;
+}
+function rowHTML(e){
+  const n=[];
+  const add=(lab,v)=>{if(has(v))n.push(`<b>${lab}</b>${esc(v)}`)};
+  add("TRK ",e.track);add("AIR ",e.air);add("UV ",e.uv);add("SOL ",e.solar);
+  add("SL ",[e.slKeg,e.slGrade].filter(has).join(" "));add("10′ ",e.k10);add("P ",e.push);add("60′ ",e.k60);add("80′ ",e.k80);
+  add("125′ ",[e.k125,e.g125].filter(has).join(" "));add("STK ",e.sticky);add("330′ ",[e.k330,e.g330].filter(has).join(" "));
+  const who=e.type==="work"?e.work:e.car;
+  const head=[e.run&&`<span class="tag">${esc(e.run)}</span>`, esc([who, e.lane&&("Lane "+e.lane)].filter(has).join(" · ")||TYPE_NAME[e.type])].filter(Boolean).join("");
+  const note=notesText(e);
+  return `<button class="row ${e.type==="run"?"run":""}" data-id="${e.id}">
+    <span><span class="t">${esc(time12(e.time).replace(/ [AP]M/,""))}</span><span class="ty">${TYPE_NAME[e.type]}</span></span>
+    <span class="main"><span class="head">${head}</span>${n.length?`<div class="nums">${n.join(" &nbsp;")}</div>`:""}${note?`<div class="note">${esc(note)}</div>`:""}</span>
+  </button>`;
+}
+
+/* ---------- entry form ---------- */
+let editing=null;      // entry object being edited
+const FIELDS=["time","run","lane","uv","solar","cc","air","track","slLoc","slKeg","k10","push","k60","k80","k125","sticky","k330","nate","et","mph","notes"];
+function fill(sel,opts){sel.innerHTML=opts.map(o=>`<option value="${esc(o)}">${o||"—"}</option>`).join("")}
+function picks(el,opts,current,onPick){
+  el.innerHTML=opts.map(o=>`<button type="button" class="pick" aria-pressed="${o===current}" data-v="${esc(o)}">${esc(o)}</button>`).join("");
+  el.onclick=ev=>{const b=ev.target.closest(".pick");if(!b)return;const v=b.dataset.v;
+    const on=b.getAttribute("aria-pressed")==="true";
+    el.querySelectorAll(".pick").forEach(p=>p.setAttribute("aria-pressed","false"));
+    if(!on)b.setAttribute("aria-pressed","true");onPick(on?"":v)};
+}
+function openForm(type,entry){
+  editing = entry? Object.assign({},entry) : {id:uid(),type,event:cfg.track,date:curDate,time:curDate===todayISO()?nowHM():""};
+  type=editing.type;
+  $("formTitle").textContent=(entry?"Edit ":"New ")+TYPE_NAME[type].toLowerCase();
+  document.querySelectorAll("#form [data-show]").forEach(el=>el.hidden=!el.dataset.show.split(" ").includes(type));
+  fill($("f_run"),RUNS);fill($("f_lane"),LANES);
+  FIELDS.forEach(f=>{const el=$("f_"+f);if(el){el.value=editing[f]??"";el.classList.remove("auto")}});
+  picks($("carPicks"),list(cfg.cars),editing.car,v=>editing.car=v);
+  picks($("workPicks"),list(cfg.work),editing.work,v=>editing.work=v);
+  document.querySelectorAll("#form [data-grade]").forEach(el=>{const k=el.dataset.grade;picks(el,GRADES,editing[k],v=>editing[k]=v)});
+  $("notePicks").innerHTML=list(cfg.notes).map(n=>`<button type="button" class="pick" data-n="${esc(n)}">${esc(n)}</button>`).join("");
+  $("wxStatus").textContent="";$("wxStatus").className="status";
+  $("entryTools").hidden=!entry;
+  $("delArea").innerHTML=`<button class="btn danger" type="button" id="delEntry">Delete entry</button>`;
+  if(entry)$("msgPreview").textContent=message(editing);
+  $("form").hidden=false;$("form").scrollTop=0;document.body.style.overflow="hidden";
+  if(!entry&&(type==="run"||type==="weather")&&cfg.key)pullWeather(true);
+}
+function readForm(){FIELDS.forEach(f=>{const el=$("f_"+f);if(el)editing[f]=el.value.trim()})}
+function closeForm(){$("form").hidden=true;document.body.style.overflow="";editing=null}
+async function pullWeather(auto){
+  const st=$("wxStatus");st.className="status";st.textContent="Getting weather…";
+  readForm();
+  try{
+    const w=await getWeather(editing.date,editing.time);
+    ["uv","solar","cc","air"].forEach(k=>{const el=$("f_"+k);if(has(w[k])&&(!auto||!has(el.value))){el.value=w[k];el.classList.add("auto")}});
+    st.className="status ok";
+    st.textContent=(w.past?"Weather for that hour":"Current weather")+" pulled from Tomorrow.io"+(w.solarOk?".":". Solar isn't available on this key, so type it in.");
+  }catch(err){
+    st.className="status err";
+    st.textContent = err instanceof TypeError ? "No connection to Tomorrow.io. Type the weather in, or tap Pull weather again once you have signal." : String(err.message||err);
+  }
+}
+function saveEntry(){
+  readForm();
+  if(editing.type==="run"&&!editing.car){toast("Pick the car for this run.");return}
+  if(editing.type==="work"&&!editing.work){toast("Pick what track work was done.");return}
+  const i=entries.findIndex(e=>e.id===editing.id);
+  const wasNew=i<0;
+  if(wasNew)entries.push(editing);else entries[i]=editing;
+  save();
+  const saved=editing;closeForm();render();
+  if(wasNew&&saved.type==="run"){openForm(null,saved);$("entryTools").scrollIntoView({block:"start"});toast("Saved. Text it to the crew below.")}
+  else toast("Saved");
+}
+
+/* ---------- copy / share ---------- */
+async function copyText(text,okMsg){
+  try{await navigator.clipboard.writeText(text);toast(okMsg)}
+  catch(e){
+    const ta=document.createElement("textarea");ta.value=text;ta.setAttribute("readonly","");ta.style.position="fixed";ta.style.opacity="0";
+    document.body.appendChild(ta);ta.select();ta.setSelectionRange(0,text.length);
+    let ok=false;try{ok=document.execCommand("copy")}catch(_){}
+    ta.remove();toast(ok?okMsg:"Couldn't copy. Try again.");
+  }
+}
+
+/* ---------- settings ---------- */
+function openSettings(){
+  fill($("s_track"),TRACKS.map(t=>t[0]));$("s_track").value=cfg.track;
+  setCoordFields();
+  $("s_key").value=cfg.key;$("s_phones").value=cfg.phones;
+  $("s_cars").value=cfg.cars;$("s_work").value=cfg.work;$("s_notes").value=cfg.notes;
+  $("testOut").hidden=true;$("restoreArea").hidden=true;
+  $("settings").hidden=false;$("settings").scrollTop=0;document.body.style.overflow="hidden";
+}
+function setCoordFields(){const c=trackCoords($("s_track").value)||{};$("s_lat").value=c.lat??"";$("s_lon").value=c.lon??""}
+function readSettings(){
+  cfg.track=$("s_track").value;
+  const lat=parseFloat($("s_lat").value),lon=parseFloat($("s_lon").value);
+  if(isFinite(lat)&&isFinite(lon)){const def=TRACKS.find(t=>t[0]===cfg.track);
+    if(!def||Math.abs(def[1]-lat)>1e-6||Math.abs(def[2]-lon)>1e-6){cfg.coords=cfg.coords||{};cfg.coords[cfg.track]={lat,lon}}}
+  cfg.key=$("s_key").value.trim();cfg.phones=$("s_phones").value.trim();
+  cfg.cars=$("s_cars").value||DEF.cars;cfg.work=$("s_work").value||DEF.work;cfg.notes=$("s_notes").value||DEF.notes;
+  store.set("tl.cfg",cfg);
+}
+
+/* ---------- wiring ---------- */
+document.querySelector(".add").onclick=e=>{const b=e.target.closest("[data-new]");if(b)openForm(b.dataset.new)};
+$("list").onclick=e=>{const r=e.target.closest(".row");if(r){const en=entries.find(x=>x.id===r.dataset.id);if(en)openForm(null,en)}};
+$("days").onclick=e=>{const c=e.target.closest(".chip");if(c){curDate=c.dataset.date;render()}};
+$("closeForm").onclick=closeForm;$("cancelForm").onclick=closeForm;
+$("saveEntry").onclick=saveEntry;
+$("pullWx").onclick=()=>pullWeather(false);
+["f_uv","f_solar","f_cc","f_air"].forEach(id=>$(id).addEventListener("input",e=>e.target.classList.remove("auto")));
+$("notePicks").onclick=e=>{const b=e.target.closest(".pick");if(!b)return;const t=$("f_notes");t.value=t.value.trim()?t.value.trim()+" / "+b.dataset.n:b.dataset.n};
+$("form").addEventListener("input",()=>{if(editing&&!$("entryTools").hidden){readForm();$("msgPreview").textContent=message(editing)}});
+$("form").addEventListener("click",e=>{if(editing&&!$("entryTools").hidden&&e.target.closest(".pick")){setTimeout(()=>$("msgPreview").textContent=message(editing))}});
+$("textCrew").onclick=()=>{readForm();const href=smsHref(message(editing));
+  if(!href){toast("Add the crew's phone numbers in Settings first.");return}
+  location.href=href;};
+$("shareMsg").onclick=async()=>{readForm();const text=message(editing);
+  if(navigator.share){try{await navigator.share({text})}catch(_){}}else copyText(text,"Message copied")};
+$("copyMsg").onclick=()=>{readForm();copyText(message(editing),"Message copied")};
+$("delArea").addEventListener("click",e=>{
+  if(e.target.id==="delEntry"){$("delArea").innerHTML=`<span>Delete this entry?</span><button class="btn danger" type="button" id="delYes">Delete</button><button class="btn" type="button" id="delNo">Keep</button>`}
+  else if(e.target.id==="delYes"){entries=entries.filter(x=>x.id!==editing.id);save();closeForm();render();toast("Entry deleted")}
+  else if(e.target.id==="delNo"){$("delArea").innerHTML=`<button class="btn danger" type="button" id="delEntry">Delete entry</button>`}
+});
+$("copyDay").onclick=()=>{const rows=dayEntries(curDate);if(!rows.length)return;
+  copyText(rows.map(excelRow).join("\n"),`${rows.length} rows copied. Paste into column A of the ${dayLabel(curDate)} tab.`)};
+$("openSettings").onclick=openSettings;
+$("closeSettings").onclick=()=>{readSettings();$("settings").hidden=true;document.body.style.overflow="";render()};
+$("saveSettings").onclick=$("closeSettings").onclick;
+$("s_track").onchange=setCoordFields;
+$("useLoc").onclick=()=>{
+  if(!navigator.geolocation){toast("This phone didn't share a location.");return}
+  navigator.geolocation.getCurrentPosition(p=>{$("s_lat").value=p.coords.latitude.toFixed(4);$("s_lon").value=p.coords.longitude.toFixed(4);toast("Location set for "+$("s_track").value)},
+    ()=>toast("Location is off. Allow it for Safari in iPhone Settings, or type the numbers in."),{enableHighAccuracy:true,timeout:15000});
+};
+$("testWx").onclick=async()=>{readSettings();const out=$("testOut");out.hidden=false;out.textContent="Asking Tomorrow.io…";
+  try{const w=await getWeather();out.textContent=`${cfg.track} right now\nUV ${w.uv}\nSolar ${w.solarOk?w.solar:"not available on this key"}\nCloud cover ${w.cc}%\nAir ${w.air}°F`}
+  catch(err){out.textContent=err instanceof TypeError?"Couldn't reach Tomorrow.io. Check your signal and try again.":"Tomorrow.io said: "+(err.message||err)}};
+$("copyBackup").onclick=()=>copyText(JSON.stringify({v:1,entries,cfg:Object.assign({},cfg,{key:""})}),"Backup copied (your API key is left out)");
+$("showRestore").onclick=()=>$("restoreArea").hidden=false;
+$("doRestore").onclick=()=>{try{const j=JSON.parse($("s_restore").value);if(!Array.isArray(j.entries))throw 0;
+  const ids=new Set(entries.map(e=>e.id));j.entries.forEach(e=>{if(!ids.has(e.id))entries.push(e)});save();toast("Backup restored");$("restoreArea").hidden=true;render()}
+  catch(e){toast("That doesn't look like a Track Log backup.")}};
+
+if("serviceWorker" in navigator&&location.protocol==="https:")navigator.serviceWorker.register("sw.js").catch(()=>{});
+if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});
+render();
+if(!cfg.key)setTimeout(()=>toast("Open Settings to add your Tomorrow.io key and crew numbers."),600);
+</script>
+</body>
+</html>
