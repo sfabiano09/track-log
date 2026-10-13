@@ -622,7 +622,7 @@ function readSettings(){
 }
 
 /* ---------- SharePoint: write rows straight into the workbook (Microsoft Graph) ---------- */
-const SCOPES=["Files.ReadWrite.All","Sites.ReadWrite.All"];
+const SCOPES=["Files.ReadWrite.All"];
 let msalApp=null, syncing=false, syncAgain=false, lastSyncErr=null, lastSyncAt=null;
 class SignInNeeded extends Error{constructor(){super("Sign in to Microsoft in Settings to send rows to the workbook.")}}
 function spConfigured(track){return !!(cfg.msClient&&cfg.msTenant&&cfg.books&&cfg.books[track])}
