@@ -380,7 +380,7 @@ function excelRow(e){
   return COLS.map(c=>{
     let v = c==="time"?time12(e.time): c==="car"?(e.type==="work"?e.work:e.car): c==="notes"?notesText(e): e[c];
     return has(v)?String(v).replace(/[\t\r\n]+/g," "):"";
-  }).join("\t");
+  }).join("\t")+"\t"; // trailing empty X cell: Notes is merged W:X in the day tabs, so the paste must cover both
 }
 function dayEntries(iso){return entries.filter(e=>e.date===iso&&e.event===cfg.track).sort((a,b)=>(a.time||"").localeCompare(b.time||""))}
 
