@@ -146,7 +146,7 @@ legend{padding:0;margin-bottom:8px}
 
 <div class="bar">
   <div class="info" id="barInfo"></div>
-  <button class="btn primary" id="copyDay">Copy for Excel</button>
+  <button class="btn primary" id="copyDay">Send to Excel</button>
 </div>
 
 <!-- Entry form -->
@@ -257,6 +257,30 @@ legend{padding:0;margin-bottom:8px}
   <div class="actions">
     <button class="btn" type="button" id="cancelForm">Cancel</button>
     <button class="btn primary" type="button" id="saveEntry">Save</button>
+  </div>
+</section>
+
+<!-- Send to Excel -->
+<section class="sheet" id="export" hidden aria-labelledby="expTitle">
+  <header>
+    <h2 id="expTitle">Send to Excel</h2>
+    <button class="iconbtn" id="closeExport" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </header>
+  <p class="help" id="expSummary"></p>
+
+  <div class="sec"><span class="label">Option 1 · Copy and paste</span></div>
+  <div class="confirm"><button class="btn primary" type="button" id="expCopy">Copy rows</button></div>
+  <div class="status" id="expCopyStatus" aria-live="polite"></div>
+  <div class="f" style="margin-top:6px"><label for="expText">Rows (if Copy doesn't work, press and hold here, tap Select All, then Copy)</label>
+    <textarea id="expText" readonly style="font:13px/1.4 ui-monospace,Menlo,monospace;min-height:120px;white-space:pre;overflow-x:auto"></textarea></div>
+  <p class="help">In the Excel app, tap cell A4 of the <b class="expDay"></b> tab (or the first empty row), tap it again, then tap Paste.</p>
+
+  <div class="sec"><span class="label">Option 2 · Send as a file</span></div>
+  <div class="confirm"><button class="btn note" type="button" id="expShare">Share file…</button></div>
+  <p class="help">Opens the iPhone share menu with a spreadsheet file of these rows. Pick Excel to open it, then select the rows, copy, and paste them into the <b class="expDay"></b> tab. You can also save it to OneDrive or SharePoint from that menu.</p>
+
+  <div class="actions">
+    <button class="btn" type="button" id="doneExport">Done</button>
   </div>
 </section>
 
@@ -586,8 +610,28 @@ $("delArea").addEventListener("click",e=>{
   else if(e.target.id==="delYes"){entries=entries.filter(x=>x.id!==editing.id);save();closeForm();render();toast("Entry deleted")}
   else if(e.target.id==="delNo"){$("delArea").innerHTML=`<button class="btn danger" type="button" id="delEntry">Delete entry</button>`}
 });
-$("copyDay").onclick=()=>{const rows=dayEntries(curDate);if(!rows.length)return;
-  copyText(rows.map(excelRow).join("\n"),`${rows.length} rows copied. Paste into column A of the ${dayLabel(curDate)} tab.`)};
+function csvCell(v){v=String(v??"");return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}
+function exportData(){
+  const rows=dayEntries(curDate);
+  return {rows, tsv:rows.map(excelRow).join("\n"),
+    csv:"\ufeff"+rows.map(e=>excelRow(e).split("\t").map(csvCell).join(",")).join("\r\n")+"\r\n",
+    name:(cfg.track||"Track").replace(/[^A-Za-z0-9]+/g,"-")+"-"+dayLabel(curDate)+"-"+curDate+".csv"};
+}
+$("copyDay").onclick=()=>{const d=exportData();if(!d.rows.length)return;
+  $("expSummary").textContent=`${d.rows.length} row${d.rows.length>1?"s":""} from ${cfg.track}, ${prettyDate(curDate)}, in your sheet's column order (Time through Notes).`;
+  document.querySelectorAll(".expDay").forEach(b=>b.textContent=dayLabel(curDate));
+  $("expText").value=d.tsv;$("expCopyStatus").textContent="";$("expCopyStatus").className="status";
+  $("expShare").hidden=!(navigator.canShare&&navigator.canShare({files:[new File(["x"],"t.csv",{type:"text/csv"})]}));
+  $("export").hidden=false;$("export").scrollTop=0;document.body.style.overflow="hidden";};
+$("expCopy").onclick=async()=>{const t=$("expText"),st=$("expCopyStatus");let ok=false;
+  try{await navigator.clipboard.writeText(t.value);ok=true}catch(_){}
+  if(!ok){t.focus();t.setSelectionRange(0,t.value.length);try{ok=document.execCommand("copy")}catch(_){}}
+  st.className="status "+(ok?"ok":"err");
+  st.textContent=ok?"Copied. Switch to Excel and paste.":"This phone blocked the copy. Press and hold the rows below, tap Select All, then Copy.";};
+$("expShare").onclick=async()=>{const d=exportData();
+  const f=new File([d.csv],d.name,{type:"text/csv"});
+  try{await navigator.share({files:[f],title:d.name})}catch(err){if(err&&err.name!=="AbortError")toast("Couldn't open the share menu. Use Copy rows instead.")}};
+$("closeExport").onclick=$("doneExport").onclick=()=>{$("export").hidden=true;document.body.style.overflow=""};
 $("openSettings").onclick=openSettings;
 $("closeSettings").onclick=()=>{readSettings();$("settings").hidden=true;document.body.style.overflow="";render()};
 $("saveSettings").onclick=$("closeSettings").onclick;
