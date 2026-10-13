@@ -71,6 +71,8 @@ header.top{display:flex;align-items:center;gap:12px;padding-block:14px 10px}
 .row .nums b{font-weight:600;color:var(--muted);font-size:12px;margin-right:2px}
 .row .note{color:var(--muted);font-size:14px;margin-top:2px;overflow-wrap:anywhere}
 .row.run{background:linear-gradient(90deg,var(--note-soft),transparent 70%)}
+.row .xl{display:block;margin-top:5px;font:600 11px/1 var(--display);letter-spacing:.06em;text-transform:uppercase}
+.row .xl.ok{color:var(--good)} .row .xl.wait{color:var(--warn)}
 .empty{padding:28px 6px;color:var(--muted);text-align:center}
 .empty strong{display:block;color:var(--ink);font:700 20px/1.2 var(--display);margin-bottom:6px}
 
@@ -268,6 +270,13 @@ legend{padding:0;margin-bottom:8px}
   </header>
   <p class="help" id="expSummary"></p>
 
+  <div id="spBox">
+    <div class="sec"><span class="label">SharePoint</span></div>
+    <div class="status" id="spState"></div>
+    <div class="confirm" style="margin-top:6px"><button class="btn primary" type="button" id="spSendDay">Send this day to the workbook</button></div>
+    <p class="help">Sends any of this day's rows that aren't in the workbook yet. Rows already sent are left alone.</p>
+  </div>
+
   <div class="sec"><span class="label">Option 1 · Copy and paste</span></div>
   <div class="confirm"><button class="btn primary" type="button" id="expCopy">Copy rows</button></div>
   <div class="status" id="expCopyStatus" aria-live="polite"></div>
@@ -311,6 +320,24 @@ legend{padding:0;margin-bottom:8px}
   </fieldset>
 
   <fieldset>
+    <legend class="label">SharePoint Excel</legend>
+    <div class="grid two">
+      <div class="f"><label for="s_msClient">Client ID</label><input id="s_msClient" autocomplete="off" autocapitalize="off" spellcheck="false" style="font-size:14px"></div>
+      <div class="f"><label for="s_msTenant">Tenant ID</label><input id="s_msTenant" autocomplete="off" autocapitalize="off" spellcheck="false" style="font-size:14px"></div>
+    </div>
+    <p class="help">From your Microsoft 365 admin. Only needed once.</p>
+    <div class="confirm" style="margin-top:8px">
+      <button class="btn note" type="button" id="msSignIn">Sign in to Microsoft</button>
+      <button class="btn" type="button" id="msSignOut" hidden>Sign out</button>
+    </div>
+    <div class="status" id="msStatus" aria-live="polite"></div>
+    <div class="f" style="margin-top:10px"><label for="s_book">Workbook link for this track</label><input id="s_book" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Paste the SharePoint link to the Excel file" style="font-size:14px"></div>
+    <div class="confirm" style="margin-top:8px"><button class="btn" type="button" id="bookConnect">Connect workbook</button></div>
+    <div class="status" id="bookStatus" aria-live="polite"></div>
+    <p class="help">In SharePoint, open the file's menu, tap Copy link, and paste it here. Each save then goes straight into the next empty row of that day's tab.</p>
+  </fieldset>
+
+  <fieldset>
     <legend class="label">Text group</legend>
     <div class="f"><label for="s_phones">Phone numbers, separated by commas</label><textarea id="s_phones" inputmode="tel" placeholder="317-555-0101, 317-555-0102" style="font-size:17px"></textarea></div>
   </fieldset>
@@ -343,6 +370,7 @@ legend{padding:0;margin-bottom:8px}
 
 <div class="toast" id="toast" hidden role="status"></div>
 
+<script src="msal-browser.min.js"></script>
 <script>
 "use strict";
 /* ---------- reference data (from the team's Data tab) ---------- */
@@ -482,7 +510,7 @@ function render(){
   const rows=dayEntries(curDate);
   $("list").innerHTML = rows.length? rows.map(rowHTML).join("") :
     `<div class="empty"><strong>No readings yet for ${dayLabel(curDate)}</strong>Tap Run, Track, Weather or Work above to log the first one.</div>`;
-  $("barInfo").textContent = rows.length? `${rows.length} row${rows.length>1?"s":""} · paste into the ${dayLabel(curDate)} tab` : "Rows copy in your Excel column order";
+  $("barInfo").textContent = spConfigured(cfg.track)? syncSummary() : rows.length? `${rows.length} row${rows.length>1?"s":""} · paste into the ${dayLabel(curDate)} tab` : "Rows copy in your Excel column order";
   $("copyDay").disabled=!rows.length;
 }
 function rowHTML(e){
@@ -495,7 +523,7 @@ function rowHTML(e){
   const head=[e.run&&`<span class="tag">${esc(e.run)}</span>`, esc([who, e.lane&&("Lane "+e.lane)].filter(has).join(" · ")||TYPE_NAME[e.type])].filter(Boolean).join("");
   const note=notesText(e);
   return `<button class="row ${e.type==="run"?"run":""}" data-id="${e.id}">
-    <span><span class="t">${esc(time12(e.time).replace(/ [AP]M/,""))}</span><span class="ty">${TYPE_NAME[e.type]}</span></span>
+    <span><span class="t">${esc(time12(e.time).replace(/ [AP]M/,""))}</span><span class="ty">${TYPE_NAME[e.type]}</span>${e.xl&&!e.dirty?`<span class="xl ok">Row ${e.xl.row}</span>`:e.dirty&&spConfigured(e.event)?`<span class="xl wait">Waiting</span>`:""}</span>
     <span class="main"><span class="head">${head}</span>${n.length?`<div class="nums">${n.join(" &nbsp;")}</div>`:""}${note?`<div class="note">${esc(note)}</div>`:""}</span>
   </button>`;
 }
@@ -548,11 +576,12 @@ function saveEntry(){
   readForm();
   if(editing.type==="run"&&!editing.car){toast("Pick the car for this run.");return}
   if(editing.type==="work"&&!editing.work){toast("Pick what track work was done.");return}
+  editing.dirty=true;
   const i=entries.findIndex(e=>e.id===editing.id);
   const wasNew=i<0;
   if(wasNew)entries.push(editing);else entries[i]=editing;
   save();
-  const saved=editing;closeForm();render();
+  const saved=editing;closeForm();render();syncNow();
   if(wasNew&&saved.type==="run"){openForm(null,saved);$("entryTools").scrollIntoView({block:"start"});toast("Saved. Text it to the crew below.")}
   else toast("Saved");
 }
@@ -573,6 +602,7 @@ function openSettings(){
   fill($("s_track"),TRACKS.map(t=>t[0]));$("s_track").value=cfg.track;
   setCoordFields();
   $("s_key").value=cfg.key;$("s_phones").value=cfg.phones;
+  $("s_msClient").value=cfg.msClient||"";$("s_msTenant").value=cfg.msTenant||"";renderSp();
   $("s_cars").value=cfg.cars;$("s_work").value=cfg.work;$("s_notes").value=cfg.notes;
   $("testOut").hidden=true;$("restoreArea").hidden=true;
   $("settings").hidden=false;$("settings").scrollTop=0;document.body.style.overflow="hidden";
@@ -584,8 +614,134 @@ function readSettings(){
   if(isFinite(lat)&&isFinite(lon)){const def=TRACKS.find(t=>t[0]===cfg.track);
     if(!def||Math.abs(def[1]-lat)>1e-6||Math.abs(def[2]-lon)>1e-6){cfg.coords=cfg.coords||{};cfg.coords[cfg.track]={lat,lon}}}
   cfg.key=$("s_key").value.trim();cfg.phones=$("s_phones").value.trim();
+  const mc=$("s_msClient").value.trim(),mt=$("s_msTenant").value.trim();
+  if(mc!==(cfg.msClient||"")||mt!==(cfg.msTenant||""))msalApp=null;
+  cfg.msClient=mc;cfg.msTenant=mt;
   cfg.cars=$("s_cars").value||DEF.cars;cfg.work=$("s_work").value||DEF.work;cfg.notes=$("s_notes").value||DEF.notes;
   store.set("tl.cfg",cfg);
+}
+
+/* ---------- SharePoint: write rows straight into the workbook (Microsoft Graph) ---------- */
+const SCOPES=["Files.ReadWrite.All","Sites.ReadWrite.All"];
+let msalApp=null, syncing=false, syncAgain=false, lastSyncErr=null, lastSyncAt=null;
+class SignInNeeded extends Error{constructor(){super("Sign in to Microsoft in Settings to send rows to the workbook.")}}
+function spConfigured(track){return !!(cfg.msClient&&cfg.msTenant&&cfg.books&&cfg.books[track])}
+async function msInit(){
+  if(msalApp)return msalApp;
+  if(!cfg.msClient||!cfg.msTenant||!window.msal)return null;
+  const app=new msal.PublicClientApplication({auth:{clientId:cfg.msClient,authority:"https://login.microsoftonline.com/"+cfg.msTenant,redirectUri:location.origin+location.pathname},cache:{cacheLocation:"localStorage"}});
+  await app.initialize();
+  let r=null;try{r=await app.handleRedirectPromise()}catch(e){lastSyncErr=e}
+  if(r&&r.account)app.setActiveAccount(r.account);
+  if(!app.getActiveAccount()&&app.getAllAccounts()[0])app.setActiveAccount(app.getAllAccounts()[0]);
+  msalApp=app;return app;
+}
+async function msToken(interactive){
+  const app=await msInit();if(!app)throw new SignInNeeded();
+  const acc=app.getActiveAccount();
+  if(!acc){if(interactive){await app.loginRedirect({scopes:SCOPES});return new Promise(()=>{})}throw new SignInNeeded()}
+  try{return (await app.acquireTokenSilent({scopes:SCOPES,account:acc})).accessToken}
+  catch(e){if(interactive){await app.acquireTokenRedirect({scopes:SCOPES,account:acc});return new Promise(()=>{})}throw new SignInNeeded()}
+}
+async function graph(method,path,body){
+  const t=await msToken(false);
+  const r=await fetch("https://graph.microsoft.com/v1.0"+path,{method,headers:{Authorization:"Bearer "+t,"Content-Type":"application/json"},body:body?JSON.stringify(body):undefined});
+  let j=null;try{j=await r.json()}catch(_){}
+  if(!r.ok){const e=new Error((j&&j.error&&j.error.message)||("HTTP "+r.status));e.status=r.status;throw e}
+  return j;
+}
+function shareId(url){return "u!"+btoa(unescape(encodeURIComponent(url.trim()))).replace(/=+$/,"").replace(/\//g,"_").replace(/\+/g,"-")}
+const wbPath=b=>`/drives/${encodeURIComponent(b.driveId)}/items/${encodeURIComponent(b.itemId)}/workbook`;
+const wsPath=name=>`/worksheets('${encodeURIComponent(name.replace(/'/g,"''"))}')`;
+async function listTabs(book){return ((await graph("GET",wbPath(book)+"/worksheets?$select=name")).value||[]).map(w=>w.name)}
+function tabFor(tabs,iso){
+  const want=dayLabel(iso).slice(0,3);
+  return tabs.find(t=>t.toUpperCase().replace(/[^A-Z]/g,"").slice(0,3)===want);
+}
+const FIRST_ROW=4, LAST_ROW=200;
+async function nextEmptyRow(book,sheet){
+  const j=await graph("GET",wbPath(book)+wsPath(sheet)+`/range(address='A${FIRST_ROW}:W${LAST_ROW}')?$select=values`);
+  const i=(j.values||[]).findIndex(r=>r.every(c=>c===""||c===null));
+  if(i<0)throw new Error(`The ${sheet} tab has no empty rows left between ${FIRST_ROW} and ${LAST_ROW}.`);
+  return FIRST_ROW+i;
+}
+function cellVal(v){
+  if(v===""||v==null)return "";
+  if(/^-?\d+(\.\d+)?$/.test(v))return Number(v);
+  if(/^[=+\-@]/.test(v))return "'"+v;   // keep notes like "- WB" from turning into formulas
+  return v;
+}
+async function writeRow(book,sheet,row,vals){
+  const base=wbPath(book)+wsPath(sheet);
+  await graph("PATCH",base+`/range(address='A${row}:V${row}')`,{values:[vals.slice(0,22).map(cellVal)]});
+  await graph("PATCH",base+`/range(address='W${row}')`,{values:[[cellVal(vals[22])]]});   // Notes is merged W:X
+}
+function syncSummary(){
+  if(syncing)return "Sending to the workbook…";
+  const waiting=entries.filter(e=>e.dirty&&spConfigured(e.event)).length;
+  if(lastSyncErr)return (waiting?`${waiting} waiting · `:"")+friendlyErr(lastSyncErr);
+  if(waiting)return `${waiting} row${waiting>1?"s":""} waiting to send`;
+  const book=cfg.books[cfg.track];
+  return `All rows are in ${book.name||"the workbook"}`;
+}
+function friendlyErr(err){
+  if(err instanceof SignInNeeded)return err.message;
+  if(err instanceof TypeError)return "No signal. Rows will send when you're back online.";
+  if(err.status===401||err.status===403)return "Microsoft refused access. Sign in again in Settings with the work account that can edit this file.";
+  if(err.status===404)return "Couldn't find the workbook. Reconnect it in Settings.";
+  if(err.status===423||err.status===409||err.status===429||err.status>=500)return "The workbook is busy. Trying again shortly.";
+  return String(err.message||err);
+}
+async function syncNow(){
+  if(syncing){syncAgain=true;return}
+  if(!cfg.msClient||!cfg.msTenant){return}
+  syncing=true;render();
+  try{
+    let clears=store.get("tl.clears",[]);
+    while(clears.length){
+      const c=clears[0],book=Object.values(cfg.books||{}).find(b=>b.itemId===c.item);
+      if(book)await writeRow(book,c.sheet,c.row,Array(24).fill(""));
+      clears.shift();store.set("tl.clears",clears);
+    }
+    const tabCache={};
+    for(const e of entries){
+      if(!e.dirty)continue;
+      const book=cfg.books&&cfg.books[e.event];if(!book)continue;
+      let sheet,row;
+      if(e.xl&&e.xl.item===book.itemId){sheet=e.xl.sheet;row=e.xl.row}
+      else{
+        const tabs=tabCache[book.itemId]||(tabCache[book.itemId]=await listTabs(book));
+        sheet=tabFor(tabs,e.date);
+        if(!sheet)throw new Error(`${book.name||"The workbook"} has no tab for ${prettyDate(e.date).split(",")[0]}. Add one named ${dayLabel(e.date)}.`);
+        row=await nextEmptyRow(book,sheet);
+      }
+      await writeRow(book,sheet,row,excelRow(e).split("\t"));
+      e.xl={item:book.itemId,sheet,row};e.dirty=false;save();render();
+    }
+    lastSyncErr=null;lastSyncAt=Date.now();
+  }catch(err){lastSyncErr=err}
+  syncing=false;render();renderSp();
+  if(syncAgain){syncAgain=false;syncNow()}
+  else if(lastSyncErr&&!(lastSyncErr instanceof SignInNeeded)){clearTimeout(syncNow.t);syncNow.t=setTimeout(syncNow,60000)}
+}
+async function renderSp(){
+  const st=$("msStatus");if(!st)return;
+  $("msSignOut").hidden=true;
+  if(!cfg.msClient||!cfg.msTenant){st.className="status";st.textContent="Add the Client ID and Tenant ID first.";}
+  else{
+    let app=null;try{app=await msInit()}catch(e){}
+    const acc=app&&app.getActiveAccount();
+    st.className="status"+(acc?" ok":"");
+    st.textContent=acc?`Signed in as ${acc.username}`:"Not signed in.";
+    $("msSignOut").hidden=!acc;
+  }
+  const b=cfg.books&&cfg.books[$("s_track")?$("s_track").value:cfg.track];
+  $("bookStatus").className="status"+(b?" ok":"");
+  $("bookStatus").textContent=b?`Connected: ${b.name}${b.tabs?" · tabs "+b.tabs.join(", "):""}`:"No workbook connected for this track.";
+  if($("spState")){
+    $("spBox").hidden=!spConfigured(cfg.track);
+    $("spState").textContent=spConfigured(cfg.track)?syncSummary():"";
+  }
 }
 
 /* ---------- wiring ---------- */
@@ -607,7 +763,9 @@ $("shareMsg").onclick=async()=>{readForm();const text=message(editing);
 $("copyMsg").onclick=()=>{readForm();copyText(message(editing),"Message copied")};
 $("delArea").addEventListener("click",e=>{
   if(e.target.id==="delEntry"){$("delArea").innerHTML=`<span>Delete this entry?</span><button class="btn danger" type="button" id="delYes">Delete</button><button class="btn" type="button" id="delNo">Keep</button>`}
-  else if(e.target.id==="delYes"){entries=entries.filter(x=>x.id!==editing.id);save();closeForm();render();toast("Entry deleted")}
+  else if(e.target.id==="delYes"){const gone=entries.find(x=>x.id===editing.id);
+    if(gone&&gone.xl){const cl=store.get("tl.clears",[]);cl.push(gone.xl);store.set("tl.clears",cl)}
+    entries=entries.filter(x=>x.id!==editing.id);save();closeForm();render();syncNow();toast("Entry deleted")}
   else if(e.target.id==="delNo"){$("delArea").innerHTML=`<button class="btn danger" type="button" id="delEntry">Delete entry</button>`}
 });
 /* ---------- real .xlsx file (no library): a stored zip of SpreadsheetML parts ---------- */
@@ -636,7 +794,7 @@ function zipStore(files){ // files: [[name, string]]
 function xesc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])).replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g,"")}
 function colName(i){return String.fromCharCode(65+i)}
 function cellXML(ref,v,style){
-  if(v===""||v==null)return "";
+  if(v===""||v==null)return `<c r="${ref}"${style?` s="${style}"`:""}/>`;
   if(typeof v==="number")return `<c r="${ref}"${style?` s="${style}"`:""}><v>${v}</v></c>`;
   return `<c r="${ref}" t="inlineStr"${style?` s="${style}"`:""}><is><t xml:space="preserve">${xesc(v)}</t></is></c>`;
 }
@@ -676,6 +834,7 @@ $("copyDay").onclick=()=>{const d=exportData();if(!d.rows.length)return;
   document.querySelectorAll(".expDay").forEach(b=>b.textContent=dayLabel(curDate));
   $("expText").value=d.tsv;$("expCopyStatus").textContent="";$("expCopyStatus").className="status";
   $("expShare").hidden=!(navigator.canShare&&navigator.canShare({files:[new File(["x"],"t.xlsx",{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"})]}));
+  renderSp();
   $("export").hidden=false;$("export").scrollTop=0;document.body.style.overflow="hidden";};
 $("expCopy").onclick=async()=>{const t=$("expText"),st=$("expCopyStatus");let ok=false;
   try{await navigator.clipboard.writeText(t.value);ok=true}catch(_){}
@@ -685,11 +844,29 @@ $("expCopy").onclick=async()=>{const t=$("expText"),st=$("expCopyStatus");let ok
 $("expShare").onclick=async()=>{const d=exportData();
   const f=new File([buildXlsx(d.rows,dayLabel(curDate))],d.name,{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
   try{await navigator.share({files:[f],title:d.name})}catch(err){if(err&&err.name!=="AbortError")toast("Couldn't open the share menu. Use Copy rows instead.")}};
+$("spSendDay").onclick=()=>{let n=0;dayEntries(curDate).forEach(e=>{if(!e.xl||e.dirty){e.dirty=true;n++}});save();
+  if(!n){toast("Every row for this day is already in the workbook.");return}
+  toast(`Sending ${n} row${n>1?"s":""}…`);syncNow().then(renderSp)};
 $("closeExport").onclick=$("doneExport").onclick=()=>{$("export").hidden=true;document.body.style.overflow=""};
 $("openSettings").onclick=openSettings;
 $("closeSettings").onclick=()=>{readSettings();$("settings").hidden=true;document.body.style.overflow="";render()};
 $("saveSettings").onclick=$("closeSettings").onclick;
-$("s_track").onchange=setCoordFields;
+$("s_track").onchange=()=>{setCoordFields();renderSp()};
+$("msSignIn").onclick=async()=>{readSettings();msalApp=null;
+  if(!cfg.msClient||!cfg.msTenant){toast("Add the Client ID and Tenant ID first.");return}
+  try{await msToken(true);renderSp();toast("Signed in")}catch(e){$("msStatus").className="status err";$("msStatus").textContent=friendlyErr(e)}};
+$("msSignOut").onclick=async()=>{const app=await msInit();const acc=app&&app.getActiveAccount();
+  if(app&&acc){try{await app.clearCache({account:acc})}catch(_){};app.setActiveAccount(null)}renderSp();toast("Signed out")};
+$("bookConnect").onclick=async()=>{readSettings();const link=$("s_book").value.trim(),st=$("bookStatus");
+  if(!/^https:\/\//.test(link)){st.className="status err";st.textContent="Paste the full SharePoint link (it starts with https://).";return}
+  st.className="status";st.textContent="Connecting…";
+  try{
+    const it=await graph("GET","/shares/"+shareId(link)+"/driveItem?$select=id,name,parentReference");
+    const book={driveId:it.parentReference.driveId,itemId:it.id,name:it.name};
+    book.tabs=await listTabs(book);
+    cfg.books=cfg.books||{};cfg.books[cfg.track]=book;store.set("tl.cfg",cfg);
+    $("s_book").value="";renderSp();toast("Workbook connected");
+  }catch(e){st.className="status err";st.textContent=friendlyErr(e)}};
 $("useLoc").onclick=()=>{
   if(!navigator.geolocation){toast("This phone didn't share a location.");return}
   navigator.geolocation.getCurrentPosition(p=>{$("s_lat").value=p.coords.latitude.toFixed(4);$("s_lon").value=p.coords.longitude.toFixed(4);toast("Location set for "+$("s_track").value)},
@@ -707,6 +884,9 @@ $("doRestore").onclick=()=>{try{const j=JSON.parse($("s_restore").value);if(!Arr
 if("serviceWorker" in navigator&&location.protocol==="https:")navigator.serviceWorker.register("sw.js").catch(()=>{});
 if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});
 render();
+if(cfg.msClient&&cfg.msTenant){msInit().then(()=>syncNow()).catch(()=>{})}
+window.addEventListener("online",()=>syncNow());
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")syncNow()});
 if(!cfg.key)setTimeout(()=>toast("Open Settings to add your Tomorrow.io key and crew numbers."),600);
 </script>
 </body>
