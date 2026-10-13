@@ -277,7 +277,7 @@ legend{padding:0;margin-bottom:8px}
 
   <div class="sec"><span class="label">Option 2 · Send as a file</span></div>
   <div class="confirm"><button class="btn note" type="button" id="expShare">Share file…</button></div>
-  <p class="help">Opens the iPhone share menu with a spreadsheet file of these rows. Pick Excel to open it, then select the rows, copy, and paste them into the <b class="expDay"></b> tab. You can also save it to OneDrive or SharePoint from that menu.</p>
+  <p class="help">Sends an Excel file of these rows through the iPhone share menu. Pick Excel (swipe the app row, or tap More), or Save to Files and open it from there. In Excel, select rows 2 and down across columns A to X, copy, then paste at A4 of the <b class="expDay"></b> tab.</p>
 
   <div class="actions">
     <button class="btn" type="button" id="doneExport">Done</button>
@@ -610,18 +610,72 @@ $("delArea").addEventListener("click",e=>{
   else if(e.target.id==="delYes"){entries=entries.filter(x=>x.id!==editing.id);save();closeForm();render();toast("Entry deleted")}
   else if(e.target.id==="delNo"){$("delArea").innerHTML=`<button class="btn danger" type="button" id="delEntry">Delete entry</button>`}
 });
+/* ---------- real .xlsx file (no library): a stored zip of SpreadsheetML parts ---------- */
+const HEAD=["Time","Run","Lane","Car","UV","Solar","CC","Air","Track","SL Location","SL KEG","SL Grade","10ft KEG","Push","60ft KEG","80ft KEG","125ft KEG","125ft Grade","Sticky","330ft KEG","330ft Grade","Nate","Notes",""];
+const CRC=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+function crc32(b){let c=0xFFFFFFFF;for(let i=0;i<b.length;i++)c=CRC[(c^b[i])&255]^(c>>>8);return(c^0xFFFFFFFF)>>>0}
+function zipStore(files){ // files: [[name, string]]
+  const enc=new TextEncoder(),parts=[],central=[];let off=0;
+  for(const [name,str] of files){
+    const nb=enc.encode(name),db=enc.encode(str),crc=crc32(db);
+    const lh=new DataView(new ArrayBuffer(30));
+    lh.setUint32(0,0x04034b50,true);lh.setUint16(4,20,true);lh.setUint16(6,0x0800,true);lh.setUint16(8,0,true);
+    lh.setUint32(14,crc,true);lh.setUint32(18,db.length,true);lh.setUint32(22,db.length,true);lh.setUint16(26,nb.length,true);
+    parts.push(new Uint8Array(lh.buffer),nb,db);
+    const ch=new DataView(new ArrayBuffer(46));
+    ch.setUint32(0,0x02014b50,true);ch.setUint16(4,20,true);ch.setUint16(6,20,true);ch.setUint16(8,0x0800,true);
+    ch.setUint32(16,crc,true);ch.setUint32(20,db.length,true);ch.setUint32(24,db.length,true);ch.setUint16(28,nb.length,true);ch.setUint32(42,off,true);
+    central.push(new Uint8Array(ch.buffer),nb);
+    off+=30+nb.length+db.length;
+  }
+  const csize=central.reduce((s,p)=>s+p.length,0);
+  const end=new DataView(new ArrayBuffer(22));
+  end.setUint32(0,0x06054b50,true);end.setUint16(8,files.length,true);end.setUint16(10,files.length,true);end.setUint32(12,csize,true);end.setUint32(16,off,true);
+  return new Blob([...parts,...central,new Uint8Array(end.buffer)],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+}
+function xesc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])).replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g,"")}
+function colName(i){return String.fromCharCode(65+i)}
+function cellXML(ref,v,style){
+  if(v===""||v==null)return "";
+  if(typeof v==="number")return `<c r="${ref}"${style?` s="${style}"`:""}><v>${v}</v></c>`;
+  return `<c r="${ref}" t="inlineStr"${style?` s="${style}"`:""}><is><t xml:space="preserve">${xesc(v)}</t></is></c>`;
+}
+function buildXlsx(entriesForDay,sheetName){
+  const rows=[HEAD.map((h,i)=>cellXML(colName(i)+"1",h,2)).join("")];
+  entriesForDay.forEach((e,ri)=>{
+    const r=ri+2, vals=excelRow(e).split("\t");
+    rows.push(vals.map((v,ci)=>{
+      const ref=colName(ci)+r;
+      if(ci===0&&e.time){const[hh,mm]=e.time.split(":").map(Number);return cellXML(ref,(hh*60+mm)/1440,1)}
+      if(/^-?\d+(\.\d+)?$/.test(v))return cellXML(ref,Number(v));
+      return cellXML(ref,v);
+    }).join(""));
+  });
+  const n=entriesForDay.length+1;
+  const merges=Array.from({length:n},(_,i)=>`<mergeCell ref="W${i+1}:X${i+1}"/>`).join("");
+  const sheet=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols><col min="1" max="1" width="10" customWidth="1"/><col min="23" max="23" width="40" customWidth="1"/></cols><sheetData>${rows.map((c,i)=>`<row r="${i+1}">${c}</row>`).join("")}</sheetData><mergeCells count="${n}">${merges}</mergeCells></worksheet>`;
+  const styles=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="h:mm AM/PM"/></numFmts><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
+  return zipStore([
+    ["[Content_Types].xml",`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`],
+    ["_rels/.rels",`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`],
+    ["xl/workbook.xml",`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${xesc(sheetName)}" sheetId="1" r:id="rId1"/></sheets></workbook>`],
+    ["xl/_rels/workbook.xml.rels",`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`],
+    ["xl/worksheets/sheet1.xml",sheet],
+    ["xl/styles.xml",styles]
+  ]);
+}
 function csvCell(v){v=String(v??"");return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}
 function exportData(){
   const rows=dayEntries(curDate);
   return {rows, tsv:rows.map(excelRow).join("\n"),
     csv:"\ufeff"+rows.map(e=>excelRow(e).split("\t").map(csvCell).join(",")).join("\r\n")+"\r\n",
-    name:(cfg.track||"Track").replace(/[^A-Za-z0-9]+/g,"-")+"-"+dayLabel(curDate)+"-"+curDate+".csv"};
+    name:(cfg.track||"Track").replace(/[^A-Za-z0-9]+/g,"-")+"-"+dayLabel(curDate)+"-"+curDate+".xlsx"};
 }
 $("copyDay").onclick=()=>{const d=exportData();if(!d.rows.length)return;
   $("expSummary").textContent=`${d.rows.length} row${d.rows.length>1?"s":""} from ${cfg.track}, ${prettyDate(curDate)}, in your sheet's column order (Time through Notes).`;
   document.querySelectorAll(".expDay").forEach(b=>b.textContent=dayLabel(curDate));
   $("expText").value=d.tsv;$("expCopyStatus").textContent="";$("expCopyStatus").className="status";
-  $("expShare").hidden=!(navigator.canShare&&navigator.canShare({files:[new File(["x"],"t.csv",{type:"text/csv"})]}));
+  $("expShare").hidden=!(navigator.canShare&&navigator.canShare({files:[new File(["x"],"t.xlsx",{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"})]}));
   $("export").hidden=false;$("export").scrollTop=0;document.body.style.overflow="hidden";};
 $("expCopy").onclick=async()=>{const t=$("expText"),st=$("expCopyStatus");let ok=false;
   try{await navigator.clipboard.writeText(t.value);ok=true}catch(_){}
@@ -629,7 +683,7 @@ $("expCopy").onclick=async()=>{const t=$("expText"),st=$("expCopyStatus");let ok
   st.className="status "+(ok?"ok":"err");
   st.textContent=ok?"Copied. Switch to Excel and paste.":"This phone blocked the copy. Press and hold the rows below, tap Select All, then Copy.";};
 $("expShare").onclick=async()=>{const d=exportData();
-  const f=new File([d.csv],d.name,{type:"text/csv"});
+  const f=new File([buildXlsx(d.rows,dayLabel(curDate))],d.name,{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
   try{await navigator.share({files:[f],title:d.name})}catch(err){if(err&&err.name!=="AbortError")toast("Couldn't open the share menu. Use Copy rows instead.")}};
 $("closeExport").onclick=$("doneExport").onclick=()=>{$("export").hidden=true;document.body.style.overflow=""};
 $("openSettings").onclick=openSettings;
