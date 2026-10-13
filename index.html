@@ -75,6 +75,13 @@ header.top{display:flex;align-items:center;gap:12px;padding-block:14px 10px}
 .row .xl.ok{color:var(--good)} .row .xl.wait{color:var(--warn)} .row .xl.txt{color:var(--ink)}
 .row .xl.txt::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--note);box-shadow:0 0 0 1px var(--ink);margin-right:5px;vertical-align:1px}
 .sheet .actions .btn{padding-inline:8px}
+.pick-sheet{position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.35);display:flex;align-items:flex-end}
+.pick-card{width:100%;background:var(--surface);border-radius:16px 16px 0 0;display:flex;flex-direction:column;gap:12px;
+  padding:18px max(16px,env(safe-area-inset-right,0)) calc(16px + env(safe-area-inset-bottom,0)) max(16px,env(safe-area-inset-left,0))}
+.pick-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.btn.big{min-height:64px;font-size:19px}
+.btn.done-mark{background:var(--surface);color:var(--good);border-color:var(--good)}
+.row .xl.wa::before{background:#25D366}
 .linkbtn{background:none;border:0;padding:0 0 0 6px;color:inherit;text-decoration:underline;font:inherit;cursor:pointer}
 .empty{padding:28px 6px;color:var(--muted);text-align:center}
 .empty strong{display:block;color:var(--ink);font:700 20px/1.2 var(--display);margin-bottom:6px}
@@ -253,6 +260,7 @@ legend{padding:0;margin-bottom:8px}
     <div class="preview" id="msgPreview"></div>
     <div class="confirm" style="margin-top:8px">
       <button class="btn note" type="button" id="textCrew">Text crew</button>
+      <button class="btn note" type="button" id="waCrew">WhatsApp</button>
       <button class="btn" type="button" id="shareMsg">Share…</button>
       <button class="btn" type="button" id="copyMsg">Copy</button>
     </div>
@@ -304,6 +312,19 @@ legend{padding:0;margin-bottom:8px}
     <button class="btn" type="button" id="doneExport">Done</button>
   </div>
 </section>
+
+<!-- Send chooser (after Save & Text) -->
+<div class="pick-sheet" id="sendPick" hidden role="dialog" aria-labelledby="sendPickTitle">
+  <div class="pick-card">
+    <div class="label" id="sendPickTitle">Saved. Send it to…</div>
+    <div class="pick-row">
+      <button class="btn note big" type="button" id="pickSms">Messages</button>
+      <button class="btn note big" type="button" id="pickWa">WhatsApp</button>
+    </div>
+    <p class="help" id="sendPickHelp">Send to one or both. In WhatsApp, tap your group, then Send.</p>
+    <button class="btn" type="button" id="pickDone" style="width:100%">Done</button>
+  </div>
+</div>
 
 <!-- Settings -->
 <section class="sheet" id="settings" hidden aria-labelledby="setTitle">
@@ -544,7 +565,7 @@ function rowHTML(e){
   const head=[e.run&&`<span class="tag">${esc(e.run)}</span>`, esc([who, e.lane&&("Lane "+e.lane)].filter(has).join(" · ")||TYPE_NAME[e.type])].filter(Boolean).join("");
   const note=notesText(e);
   return `<button class="row ${e.type==="run"?"run":""}" data-id="${e.id}">
-    <span><span class="t">${esc(time12(e.time).replace(/ [AP]M/,""))}</span><span class="ty">${TYPE_NAME[e.type]}</span>${e.texted?`<span class="xl txt">Texted</span>`:""}${e.xl&&!e.dirty?`<span class="xl ok">Row ${e.xl.row}</span>`:e.dirty&&spConfigured(e.event)?`<span class="xl wait">Waiting</span>`:""}</span>
+    <span><span class="t">${esc(time12(e.time).replace(/ [AP]M/,""))}</span><span class="ty">${TYPE_NAME[e.type]}</span>${e.texted?`<span class="xl txt">Texted</span>`:""}${e.wa?`<span class="xl txt wa">WhatsApp</span>`:""}${e.xl&&!e.dirty?`<span class="xl ok">Row ${e.xl.row}</span>`:e.dirty&&spConfigured(e.event)?`<span class="xl wait">Waiting</span>`:""}</span>
     <span class="main"><span class="head">${head}</span>${n.length?`<div class="nums">${n.join(" &nbsp;")}</div>`:""}${note?`<div class="note">${esc(note)}</div>`:""}</span>
   </button>`;
 }
@@ -608,11 +629,7 @@ function saveEntry(andText){
     const line=sheetLine(entries.filter(e=>e.date===saved.date&&e.event===saved.event).sort((a,b)=>(a.time||"").localeCompare(b.time||"")));
     navigator.clipboard.writeText(line).then(()=>{copied=true},()=>{});
   }
-  if(andText){
-    const href=smsHref(message(saved));
-    if(!href){toast("Saved. Add crew phone numbers in Settings to text.");return}
-    markTexted(saved);location.href=href;return;
-  }
+  if(andText){openPick(saved);return}
   setTimeout(()=>toast("Saved"+(copied?" · copied for Excel":"")),120);
 }
 
@@ -789,18 +806,39 @@ $("pullWx").onclick=()=>pullWeather(false);
 $("notePicks").onclick=e=>{const b=e.target.closest(".pick");if(!b)return;const t=$("f_notes");t.value=t.value.trim()?t.value.trim()+" / "+b.dataset.n:b.dataset.n};
 $("form").addEventListener("input",()=>{if(editing&&!$("entryTools").hidden){readForm();$("msgPreview").textContent=message(editing)}});
 $("form").addEventListener("click",e=>{if(editing&&!$("entryTools").hidden&&e.target.closest(".pick")){setTimeout(()=>$("msgPreview").textContent=message(editing))}});
-function markTexted(e,on=true){
-  const t=entries.find(x=>x.id===e.id);
-  if(t){if(on)t.texted=Date.now();else delete t.texted;save();render()}
-  if(editing&&editing.id===e.id){if(on)editing.texted=t?t.texted:Date.now();else delete editing.texted;showTexted()}
+const SENT_KEY={sms:"texted",wa:"wa"};
+function markSent(e,ch,on=true){
+  const k=SENT_KEY[ch],t=entries.find(x=>x.id===e.id);
+  if(t){if(on)t[k]=Date.now();else delete t[k];save();render()}
+  if(editing&&editing.id===e.id){if(on)editing[k]=t?t[k]:Date.now();else delete editing[k];showTexted()}
 }
+const markTexted=(e,on=true)=>markSent(e,"sms",on);
+function waHref(body){return "whatsapp://send?text="+encodeURIComponent(body)}
 function showTexted(){
   const st=$("textedStatus");if(!st||!editing)return;
-  if(editing.texted){const d=new Date(editing.texted);
-    st.className="status ok";st.innerHTML=`Texted at ${esc(d.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}))}<button type="button" class="linkbtn" id="unText">Unmark</button>`;}
-  else{st.className="status";st.textContent="Not texted yet.";}
+  const tm=v=>esc(new Date(v).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}));
+  const parts=[];
+  if(editing.texted)parts.push(`Texted at ${tm(editing.texted)}<button type="button" class="linkbtn" data-un="sms">Unmark</button>`);
+  if(editing.wa)parts.push(`WhatsApp at ${tm(editing.wa)}<button type="button" class="linkbtn" data-un="wa">Unmark</button>`);
+  st.className="status"+(parts.length?" ok":"");
+  st.innerHTML=parts.length?parts.join(" &nbsp;·&nbsp; "):"Not sent yet.";
 }
-$("textedStatus").addEventListener("click",e=>{if(e.target.id==="unText")markTexted(editing,false)});
+$("textedStatus").addEventListener("click",e=>{const b=e.target.closest("[data-un]");if(b)markSent(editing,b.dataset.un,false)});
+/* chooser after Save & Text */
+let pickEntry=null;
+function openPick(entry){pickEntry=entry;$("pickSms").className="btn note big";$("pickWa").className="btn note big";
+  $("pickSms").textContent="Messages";$("pickWa").textContent="WhatsApp";$("sendPick").hidden=false}
+function sendVia(ch,entry,btn){
+  const body=message(entry);
+  if(ch==="sms"){const href=smsHref(body);if(!href){toast("Add crew phone numbers in Settings to use Messages.");return}
+    markSent(entry,"sms");if(btn){btn.className="btn big done-mark";btn.textContent="Messages ✓"}location.href=href}
+  else{markSent(entry,"wa");if(btn){btn.className="btn big done-mark";btn.textContent="WhatsApp ✓"}location.href=waHref(body)}
+}
+$("pickSms").onclick=()=>pickEntry&&sendVia("sms",pickEntry,$("pickSms"));
+$("pickWa").onclick=()=>pickEntry&&sendVia("wa",pickEntry,$("pickWa"));
+$("pickDone").onclick=()=>{$("sendPick").hidden=true;pickEntry=null};
+$("sendPick").addEventListener("click",e=>{if(e.target.id==="sendPick"){$("sendPick").hidden=true;pickEntry=null}});
+$("waCrew").onclick=()=>{readForm();sendVia("wa",editing,null)};
 $("saveText").onclick=()=>saveEntry(true);
 $("textCrew").onclick=()=>{readForm();const href=smsHref(message(editing));
   if(!href){toast("Add the crew's phone numbers in Settings first.");return}
