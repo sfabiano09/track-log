@@ -72,7 +72,10 @@ header.top{display:flex;align-items:center;gap:12px;padding-block:14px 10px}
 .row .note{color:var(--muted);font-size:14px;margin-top:2px;overflow-wrap:anywhere}
 .row.run{background:linear-gradient(90deg,var(--note-soft),transparent 70%)}
 .row .xl{display:block;margin-top:5px;font:600 11px/1 var(--display);letter-spacing:.06em;text-transform:uppercase}
-.row .xl.ok{color:var(--good)} .row .xl.wait{color:var(--warn)}
+.row .xl.ok{color:var(--good)} .row .xl.wait{color:var(--warn)} .row .xl.txt{color:var(--ink)}
+.row .xl.txt::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--note);box-shadow:0 0 0 1px var(--ink);margin-right:5px;vertical-align:1px}
+.sheet .actions .btn{padding-inline:8px}
+.linkbtn{background:none;border:0;padding:0 0 0 6px;color:inherit;text-decoration:underline;font:inherit;cursor:pointer}
 .empty{padding:28px 6px;color:var(--muted);text-align:center}
 .empty strong{display:block;color:var(--ink);font:700 20px/1.2 var(--display);margin-bottom:6px}
 
@@ -246,6 +249,7 @@ legend{padding:0;margin-bottom:8px}
 
   <fieldset id="entryTools" hidden>
     <div class="sec"><span class="label">Text message</span></div>
+    <div class="status" id="textedStatus"></div>
     <div class="preview" id="msgPreview"></div>
     <div class="confirm" style="margin-top:8px">
       <button class="btn note" type="button" id="textCrew">Text crew</button>
@@ -260,6 +264,7 @@ legend{padding:0;margin-bottom:8px}
 
   <div class="actions">
     <button class="btn" type="button" id="cancelForm">Cancel</button>
+    <button class="btn note" type="button" id="saveText">Save &amp; Text</button>
     <button class="btn primary" type="button" id="saveEntry">Save</button>
   </div>
 </section>
@@ -539,7 +544,7 @@ function rowHTML(e){
   const head=[e.run&&`<span class="tag">${esc(e.run)}</span>`, esc([who, e.lane&&("Lane "+e.lane)].filter(has).join(" · ")||TYPE_NAME[e.type])].filter(Boolean).join("");
   const note=notesText(e);
   return `<button class="row ${e.type==="run"?"run":""}" data-id="${e.id}">
-    <span><span class="t">${esc(time12(e.time).replace(/ [AP]M/,""))}</span><span class="ty">${TYPE_NAME[e.type]}</span>${e.xl&&!e.dirty?`<span class="xl ok">Row ${e.xl.row}</span>`:e.dirty&&spConfigured(e.event)?`<span class="xl wait">Waiting</span>`:""}</span>
+    <span><span class="t">${esc(time12(e.time).replace(/ [AP]M/,""))}</span><span class="ty">${TYPE_NAME[e.type]}</span>${e.texted?`<span class="xl txt">Texted</span>`:""}${e.xl&&!e.dirty?`<span class="xl ok">Row ${e.xl.row}</span>`:e.dirty&&spConfigured(e.event)?`<span class="xl wait">Waiting</span>`:""}</span>
     <span class="main"><span class="head">${head}</span>${n.length?`<div class="nums">${n.join(" &nbsp;")}</div>`:""}${note?`<div class="note">${esc(note)}</div>`:""}</span>
   </button>`;
 }
@@ -569,7 +574,7 @@ function openForm(type,entry){
   $("wxStatus").textContent="";$("wxStatus").className="status";
   $("entryTools").hidden=!entry;
   $("delArea").innerHTML=`<button class="btn danger" type="button" id="delEntry">Delete entry</button>`;
-  if(entry)$("msgPreview").textContent=message(editing);
+  if(entry){$("msgPreview").textContent=message(editing);showTexted()}
   $("form").hidden=false;$("form").scrollTop=0;document.body.style.overflow="hidden";
   if(!entry&&(type==="run"||type==="weather")&&cfg.key)pullWeather(true);
 }
@@ -588,7 +593,7 @@ async function pullWeather(auto){
     st.textContent = err instanceof TypeError ? "No connection to Tomorrow.io. Type the weather in, or tap Pull weather again once you have signal." : String(err.message||err);
   }
 }
-function saveEntry(){
+function saveEntry(andText){
   readForm();
   if(editing.type==="run"&&!editing.car){toast("Pick the car for this run.");return}
   if(editing.type==="work"&&!editing.work){toast("Pick what track work was done.");return}
@@ -603,11 +608,12 @@ function saveEntry(){
     const line=sheetLine(entries.filter(e=>e.date===saved.date&&e.event===saved.event).sort((a,b)=>(a.time||"").localeCompare(b.time||"")));
     navigator.clipboard.writeText(line).then(()=>{copied=true},()=>{});
   }
-  setTimeout(()=>{
-    const extra=copied?" · copied for Excel":"";
-    if(wasNew&&saved.type==="run"){openForm(null,saved);$("entryTools").scrollIntoView({block:"start"});toast("Saved"+extra+". Text it to the crew below.")}
-    else toast("Saved"+extra);
-  },120);
+  if(andText){
+    const href=smsHref(message(saved));
+    if(!href){toast("Saved. Add crew phone numbers in Settings to text.");return}
+    markTexted(saved);location.href=href;return;
+  }
+  setTimeout(()=>toast("Saved"+(copied?" · copied for Excel":"")),120);
 }
 
 /* ---------- copy / share ---------- */
@@ -777,17 +783,30 @@ document.querySelector(".add").onclick=e=>{const b=e.target.closest("[data-new]"
 $("list").onclick=e=>{const r=e.target.closest(".row");if(r){const en=entries.find(x=>x.id===r.dataset.id);if(en)openForm(null,en)}};
 $("days").onclick=e=>{const c=e.target.closest(".chip");if(c){curDate=c.dataset.date;render()}};
 $("closeForm").onclick=closeForm;$("cancelForm").onclick=closeForm;
-$("saveEntry").onclick=saveEntry;
+$("saveEntry").onclick=()=>saveEntry(false);
 $("pullWx").onclick=()=>pullWeather(false);
 ["f_uv","f_solar","f_cc","f_air"].forEach(id=>$(id).addEventListener("input",e=>e.target.classList.remove("auto")));
 $("notePicks").onclick=e=>{const b=e.target.closest(".pick");if(!b)return;const t=$("f_notes");t.value=t.value.trim()?t.value.trim()+" / "+b.dataset.n:b.dataset.n};
 $("form").addEventListener("input",()=>{if(editing&&!$("entryTools").hidden){readForm();$("msgPreview").textContent=message(editing)}});
 $("form").addEventListener("click",e=>{if(editing&&!$("entryTools").hidden&&e.target.closest(".pick")){setTimeout(()=>$("msgPreview").textContent=message(editing))}});
+function markTexted(e,on=true){
+  const t=entries.find(x=>x.id===e.id);
+  if(t){if(on)t.texted=Date.now();else delete t.texted;save();render()}
+  if(editing&&editing.id===e.id){if(on)editing.texted=t?t.texted:Date.now();else delete editing.texted;showTexted()}
+}
+function showTexted(){
+  const st=$("textedStatus");if(!st||!editing)return;
+  if(editing.texted){const d=new Date(editing.texted);
+    st.className="status ok";st.innerHTML=`Texted at ${esc(d.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}))}<button type="button" class="linkbtn" id="unText">Unmark</button>`;}
+  else{st.className="status";st.textContent="Not texted yet.";}
+}
+$("textedStatus").addEventListener("click",e=>{if(e.target.id==="unText")markTexted(editing,false)});
+$("saveText").onclick=()=>saveEntry(true);
 $("textCrew").onclick=()=>{readForm();const href=smsHref(message(editing));
   if(!href){toast("Add the crew's phone numbers in Settings first.");return}
-  location.href=href;};
+  markTexted(editing);location.href=href;};
 $("shareMsg").onclick=async()=>{readForm();const text=message(editing);
-  if(navigator.share){try{await navigator.share({text})}catch(_){}}else copyText(text,"Message copied")};
+  if(navigator.share){try{await navigator.share({text});markTexted(editing)}catch(_){}}else copyText(text,"Message copied")};
 $("copyMsg").onclick=()=>{readForm();copyText(message(editing),"Message copied")};
 $("delArea").addEventListener("click",e=>{
   if(e.target.id==="delEntry"){$("delArea").innerHTML=`<span>Delete this entry?</span><button class="btn danger" type="button" id="delYes">Delete</button><button class="btn" type="button" id="delNo">Keep</button>`}
