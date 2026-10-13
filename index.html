@@ -282,7 +282,7 @@ legend{padding:0;margin-bottom:8px}
   <div class="status" id="expCopyStatus" aria-live="polite"></div>
   <div class="f" style="margin-top:6px"><label for="expText">Rows (if Copy doesn't work, press and hold here, tap Select All, then Copy)</label>
     <textarea id="expText" readonly style="font:13px/1.4 ui-monospace,Menlo,monospace;min-height:120px;white-space:pre;overflow-x:auto"></textarea></div>
-  <p class="help">In the Excel app, tap cell A4 of the <b class="expDay"></b> tab (or the first empty row), tap it again, then tap Paste.</p>
+  <p class="help">Copies the rows as a table, with blank cells kept in place. In the Excel app, tap the first empty cell in column A of the <b class="expDay"></b> tab once so it's outlined, tap it again, then tap Paste. Don't double-tap into typing mode.</p>
 
   <div class="sec"><span class="label">Option 2 · Send as a file</span></div>
   <div class="confirm"><button class="btn note" type="button" id="expShare">Share file…</button></div>
@@ -836,11 +836,27 @@ $("copyDay").onclick=()=>{const d=exportData();if(!d.rows.length)return;
   $("expShare").hidden=!(navigator.canShare&&navigator.canShare({files:[new File(["x"],"t.xlsx",{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"})]}));
   renderSp();
   $("export").hidden=false;$("export").scrollTop=0;document.body.style.overflow="hidden";};
-$("expCopy").onclick=async()=>{const t=$("expText"),st=$("expCopyStatus");let ok=false;
-  try{await navigator.clipboard.writeText(t.value);ok=true}catch(_){}
-  if(!ok){t.focus();t.setSelectionRange(0,t.value.length);try{ok=document.execCommand("copy")}catch(_){}}
+function rowsHTML(rows){
+  // Excel (iPhone and desktop) pastes an HTML table cell by cell; empty <td>s keep blanks in place
+  const tr=rows.map(e=>"<tr>"+excelRow(e).split("\t").map(v=>"<td>"+esc(v)+"</td>").join("")+"</tr>").join("");
+  return '<html><head><meta charset="utf-8"></head><body><table><!--StartFragment-->'+tr+'<!--EndFragment--></table></body></html>';
+}
+$("expCopy").onclick=async()=>{const t=$("expText"),st=$("expCopyStatus");let ok=false,how="";
+  const rows=dayEntries(curDate);
+  try{ // must start before any await, or iPhone drops the tap permission
+    if(window.ClipboardItem&&navigator.clipboard&&navigator.clipboard.write){
+      await navigator.clipboard.write([new ClipboardItem({
+        "text/html":new Blob([rowsHTML(rows)],{type:"text/html"}),
+        "text/plain":new Blob([t.value],{type:"text/plain"})})]);
+      ok=true;how="table";
+    }
+  }catch(_){}
+  if(!ok){try{await navigator.clipboard.writeText(t.value);ok=true;how="text"}catch(_){}}
+  if(!ok){t.focus();t.setSelectionRange(0,t.value.length);try{ok=document.execCommand("copy");how="text"}catch(_){}}
   st.className="status "+(ok?"ok":"err");
-  st.textContent=ok?"Copied. Switch to Excel and paste.":"This phone blocked the copy. Press and hold the rows below, tap Select All, then Copy.";};
+  st.textContent=!ok?"This phone blocked the copy. Press and hold the rows below, tap Select All, then Copy."
+    :how==="table"?`Copied ${rows.length} row${rows.length>1?"s":""} as a table. In Excel, tap A4 once, tap it again, then tap Paste.`
+    :"Copied as plain text. If Excel won't paste it, use Share file below.";};
 $("expShare").onclick=async()=>{const d=exportData();
   const f=new File([buildXlsx(d.rows,dayLabel(curDate))],d.name,{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
   try{await navigator.share({files:[f],title:d.name})}catch(err){if(err&&err.name!=="AbortError")toast("Couldn't open the share menu. Use Copy rows instead.")}};

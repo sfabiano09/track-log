@@ -1,5 +1,5 @@
 // Keeps the app opening with no signal. Network first so updates show up; cache as fallback.
-const CACHE = "track-log-v3";
+const CACHE = "track-log-v4";
 const FILES = ["./", "index.html", "manifest.json", "icon-180.png", "icon-192.png", "icon-512.png", "msal-browser.min.js"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES))); self.skipWaiting(); });
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k))))); self.clients.claim(); });
