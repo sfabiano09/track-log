@@ -277,14 +277,19 @@ legend{padding:0;margin-bottom:8px}
     <p class="help">Sends any of this day's rows that aren't in the workbook yet. Rows already sent are left alone.</p>
   </div>
 
-  <div class="sec"><span class="label">Option 1 · Copy and paste</span></div>
-  <div class="confirm"><button class="btn primary" type="button" id="expCopy">Copy rows</button></div>
+  <div class="sec"><span class="label">On the iPhone · Paste into one cell</span></div>
+  <div class="confirm"><button class="btn primary" type="button" id="expLine">Copy for sheet</button></div>
+  <div class="status" id="expLineStatus" aria-live="polite"></div>
+  <p class="help">Copies the whole day as one line. In Excel, open the <b class="expDay"></b> tab, tap cell <b>Z1</b>, tap the bar at the top where the cell's text shows, tap <b>Select All</b>, then <b>Paste</b>, then the check mark. The formulas fill every row from it. Paste again anytime and the sheet updates to match the app.</p>
+
+  <div class="sec"><span class="label">On a computer · Copy and paste rows</span></div>
+  <div class="confirm"><button class="btn" type="button" id="expCopy">Copy rows</button></div>
   <div class="status" id="expCopyStatus" aria-live="polite"></div>
   <div class="f" style="margin-top:6px"><label for="expText">Rows (if Copy doesn't work, press and hold here, tap Select All, then Copy)</label>
     <textarea id="expText" readonly style="font:13px/1.4 ui-monospace,Menlo,monospace;min-height:120px;white-space:pre;overflow-x:auto"></textarea></div>
-  <p class="help">Copies the rows as a table, with blank cells kept in place. In the Excel app, tap the first empty cell in column A of the <b class="expDay"></b> tab once so it's outlined, tap it again, then tap Paste. Don't double-tap into typing mode.</p>
+  <p class="help">For Excel on a computer, in a tab without the Z1 formulas. Click the first empty cell in column A and paste.</p>
 
-  <div class="sec"><span class="label">Option 2 · Send as a file</span></div>
+  <div class="sec"><span class="label">Send as a file</span></div>
   <div class="confirm"><button class="btn note" type="button" id="expShare">Share file…</button></div>
   <p class="help">Makes an Excel file of these rows. In the share menu tap <b>Save to Files</b> and pick your OneDrive or SharePoint folder (or On My iPhone). Then open the file in the Excel app, select rows 2 and down across columns A to X, copy, and paste at A4 of the <b class="expDay"></b> tab.</p>
 
@@ -836,6 +841,15 @@ $("copyDay").onclick=()=>{const d=exportData();if(!d.rows.length)return;
   $("expShare").hidden=!(navigator.canShare&&navigator.canShare({files:[new File(["x"],"t.xlsx",{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"})]}));
   renderSp();
   $("export").hidden=false;$("export").scrollTop=0;document.body.style.overflow="hidden";};
+function sheetLine(rows){
+  // one line for cell Z1: columns split by | and rows by ~ (the day tab formulas use TEXTSPLIT on these)
+  return rows.map(e=>excelRow(e).split("\t").slice(0,23).map(v=>v.replace(/[|~\r\n\t]+/g,"/")).join("|")).join("~");
+}
+$("expLine").onclick=async()=>{const rows=dayEntries(curDate),line=sheetLine(rows),st=$("expLineStatus");let ok=false;
+  try{await navigator.clipboard.writeText(line);ok=true}catch(_){}
+  if(!ok){const t=$("expText");t.value=line;t.focus();t.setSelectionRange(0,line.length);try{ok=document.execCommand("copy")}catch(_){}}
+  st.className="status "+(ok?"ok":"err");
+  st.textContent=ok?`Copied ${rows.length} row${rows.length>1?"s":""}. Paste into Z1 of the ${dayLabel(curDate)} tab.`:"This phone blocked the copy. Press and hold the text box below, tap Select All, then Copy.";};
 function rowsHTML(rows){
   // Excel (iPhone and desktop) pastes an HTML table cell by cell; empty <td>s keep blanks in place
   const tr=rows.map(e=>"<tr>"+excelRow(e).split("\t").map(v=>"<td>"+esc(v)+"</td>").join("")+"</tr>").join("");
