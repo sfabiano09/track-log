@@ -95,7 +95,7 @@ header.top{display:flex;align-items:center;gap:12px;padding-block:14px 10px}
 .sheet .actions{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);display:flex;gap:10px;
   padding:10px max(16px,env(safe-area-inset-right,0)) calc(10px + env(safe-area-inset-bottom,0)) max(16px,env(safe-area-inset-left,0));z-index:3}
 .sheet .actions .btn{flex:1}
-fieldset{border:0;margin:0 0 18px;padding:0}
+fieldset{border:0;margin:0 0 18px;padding:0;min-width:0}
 legend{padding:0;margin-bottom:8px}
 .sec{display:flex;justify-content:space-between;align-items:center;margin:18px 0 8px}
 .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
@@ -353,7 +353,9 @@ legend{padding:0;margin-bottom:8px}
 
   <fieldset>
     <legend class="label">Text group</legend>
-    <div class="f"><label for="s_phones">Phone numbers, separated by commas</label><textarea id="s_phones" inputmode="tel" placeholder="317-555-0101, 317-555-0102" style="font-size:17px"></textarea></div>
+    <div class="label" style="margin-bottom:6px">Crew phone numbers</div>
+    <div id="phoneList" style="display:flex;flex-direction:column;gap:8px"></div>
+    <div class="confirm" style="margin-top:8px"><button class="btn" type="button" id="addPhone">Add number</button></div>
   </fieldset>
 
   <fieldset>
@@ -623,7 +625,7 @@ async function copyText(text,okMsg){
 function openSettings(){
   fill($("s_track"),TRACKS.map(t=>t[0]));$("s_track").value=cfg.track;
   setCoordFields();
-  $("s_key").value=cfg.key;$("s_phones").value=cfg.phones;
+  $("s_key").value=cfg.key;renderPhones(list(cfg.phones));
   $("s_xlLink").value=(cfg.xlLinks||{})[cfg.track]||"";$("s_autoCopy").checked=cfg.autoCopy!==false;
   $("s_msClient").value=cfg.msClient||"";$("s_msTenant").value=cfg.msTenant||"";renderSp();
   $("s_cars").value=cfg.cars;$("s_work").value=cfg.work;$("s_notes").value=cfg.notes;
@@ -636,7 +638,8 @@ function readSettings(){
   const lat=parseFloat($("s_lat").value),lon=parseFloat($("s_lon").value);
   if(isFinite(lat)&&isFinite(lon)){const def=TRACKS.find(t=>t[0]===cfg.track);
     if(!def||Math.abs(def[1]-lat)>1e-6||Math.abs(def[2]-lon)>1e-6){cfg.coords=cfg.coords||{};cfg.coords[cfg.track]={lat,lon}}}
-  cfg.key=$("s_key").value.trim();cfg.phones=$("s_phones").value.trim();
+  cfg.key=$("s_key").value.trim();
+  cfg.phones=[...document.querySelectorAll("#phoneList input")].map(i=>i.value.trim()).filter(Boolean).join(", ");
   const mc=$("s_msClient").value.trim(),mt=$("s_msTenant").value.trim();
   if(mc!==(cfg.msClient||"")||mt!==(cfg.msTenant||""))msalApp=null;
   cfg.msClient=mc;cfg.msTenant=mt;
@@ -905,6 +908,16 @@ $("openExcel").onclick=async()=>{
   if(!link){toast("Add this track's workbook link in Settings to open it from here.");return}
   location.href="ms-excel:ofe|u|"+link;
 };
+function renderPhones(nums){
+  if(!nums.length)nums=[""];
+  $("phoneList").innerHTML=nums.map((n,i)=>`<div style="display:flex;gap:8px;align-items:center">
+    <input type="tel" inputmode="tel" autocomplete="off" id="s_phone${i}" aria-label="Phone number ${i+1}" value="${esc(n)}" placeholder="317-555-0101"
+      style="flex:1;min-width:0;min-height:50px;border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:10px;font-size:20px;font-weight:600">
+    <button type="button" class="iconbtn" data-rm="${i}" aria-label="Remove number ${i+1}"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>`).join("");
+}
+function currentPhones(){return [...document.querySelectorAll("#phoneList input")].map(i=>i.value)}
+$("addPhone").onclick=()=>{const n=currentPhones();n.push("");renderPhones(n);const all=document.querySelectorAll("#phoneList input");all[all.length-1].focus()};
+$("phoneList").onclick=e=>{const b=e.target.closest("[data-rm]");if(!b)return;const n=currentPhones();n.splice(+b.dataset.rm,1);renderPhones(n)};
 $("openSettings").onclick=openSettings;
 $("closeSettings").onclick=()=>{readSettings();$("settings").hidden=true;document.body.style.overflow="";render()};
 $("saveSettings").onclick=$("closeSettings").onclick;
