@@ -212,7 +212,7 @@ legend{padding:0;margin-bottom:8px}
         <div class="f"><label for="f_k60">KEG</label><input id="f_k60" inputmode="decimal"></div>
       </div>
       <div class="station">
-        <span class="label">80 ft</span>
+        <span class="label">80ft / Sticky</span>
         <div class="f"><label for="f_k80">KEG</label><input id="f_k80" inputmode="decimal"></div>
       </div>
       <div class="station wide">
@@ -484,7 +484,7 @@ function message(e){
   if(has(e.slKeg)||has(e.slLoc)||has(e.slGrade))k.push("SL "+[e.slLoc,e.slKeg,e.slGrade].filter(has).join(" "));
   if(has(e.k10)||has(e.push))k.push("10' "+[e.k10,has(e.push)&&("P"+e.push)].filter(Boolean).join(" "));
   if(has(e.k60))k.push("60' "+e.k60);
-  if(has(e.k80))k.push("80' "+e.k80);
+  if(has(e.k80))k.push("80ft/Sticky "+e.k80);
   if(has(e.k125)||has(e.g125))k.push("125' "+[e.k125,e.g125].filter(has).join(" "));
   if(has(e.sticky))k.push("Sticky "+e.sticky);
   if(has(e.k330)||has(e.g330))k.push("330' "+[e.k330,e.g330].filter(has).join(" "));
@@ -552,7 +552,7 @@ function rowHTML(e){
   const n=[];
   const add=(lab,v)=>{if(has(v))n.push(`<b>${lab}</b>${esc(v)}`)};
   add("TRK ",e.track);add("AIR ",e.air);add("UV ",e.uv);add("SOL ",e.solar);
-  add("SL ",[e.slKeg,e.slGrade].filter(has).join(" "));add("10′ ",e.k10);add("P ",e.push);add("60′ ",e.k60);add("80′ ",e.k80);
+  add("SL ",[e.slKeg,e.slGrade].filter(has).join(" "));add("10′ ",e.k10);add("P ",e.push);add("60′ ",e.k60);add("80/STK ",e.k80);
   add("125′ ",[e.k125,e.g125].filter(has).join(" "));add("STK ",e.sticky);add("330′ ",[e.k330,e.g330].filter(has).join(" "));
   const who=e.type==="work"?e.work:e.car;
   const head=[e.run&&`<span class="tag">${esc(e.run)}</span>`, esc([who, e.lane&&("Lane "+e.lane)].filter(has).join(" · ")||TYPE_NAME[e.type])].filter(Boolean).join("");
