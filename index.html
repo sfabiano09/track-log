@@ -524,7 +524,7 @@ function message(e){
   const wx=[has(e.track)&&"Track "+e.track+"°", has(e.air)&&"Air "+e.air+"°", has(e.uv)&&"UV "+e.uv, has(e.solar)&&"Solar "+e.solar, has(e.cc)&&"CC "+e.cc+"%"].filter(Boolean);
   if(wx.length)L.push(wx.join(" · "));
   const k=[];
-  if(has(e.slKeg)||has(e.slLoc)||has(e.slSticky)||has(e.slGrade))k.push("SL "+[e.slLoc,e.slKeg,has(e.slSticky)&&("Stk "+e.slSticky),e.slGrade].filter(has).join(" "));
+  if(has(e.slKeg)||has(e.slLoc)||has(e.slSticky)||has(e.slGrade))k.push("SL "+[e.slLoc,e.slKeg,(has(e.slSticky)?"Stk "+e.slSticky:""),e.slGrade].filter(has).join(" "));
   if(has(e.k10)||has(e.push))k.push("10' "+[e.k10,has(e.push)&&("P"+e.push)].filter(Boolean).join(" "));
   if(has(e.k60))k.push("60' "+e.k60);
   if(has(e.k80))k.push("80' "+e.k80);
