@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Track Log · Graph demo</title>
+<meta name="color-scheme" content="light only">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Small multiples on one shared clock: each measure keeps its own scale (no dual axes). */
+:root{
+  --bg:#EEF0F2; --surface:#FFFFFF; --ink:#0B0D0F; --muted:#3E454C; --line:#AEB6BD;
+  --grid:#E3E6E9; --axis:#9AA2A9; --note:#FFD43B; --note-ink:#1A1C1E;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#008300; --s7:#6250d6; --s8:#e34948;
+  --display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.4 var(--body);font-variant-numeric:tabular-nums;
+  padding:env(safe-area-inset-top,0) max(16px,env(safe-area-inset-right,0)) calc(24px + env(safe-area-inset-bottom,0)) max(16px,env(safe-area-inset-left,0))}
+header{padding-block:14px 6px}
+h1{margin:0;font:700 28px/1 var(--display)}
+.sub{color:var(--muted);font-size:14px;margin-top:3px}
+.demo{display:inline-block;margin-left:6px;background:var(--note);color:var(--note-ink);font:700 11px/1 var(--display);letter-spacing:.08em;padding:3px 6px;border-radius:4px;vertical-align:4px}
+.filters{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding-block:8px}
+.filters .lab{font:600 12px/1 var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-right:4px}
+.chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:8px 14px;font:700 15px/1 var(--display);letter-spacing:.04em;min-height:38px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.readout{position:sticky;top:env(safe-area-inset-top,0);z-index:5;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:10px;min-height:54px}
+.readout .t{font:700 17px/1.1 var(--display)}
+.readout .vals{display:flex;flex-wrap:wrap;gap:2px 12px;font-size:13px;margin-top:3px}
+.readout .vals span{white-space:nowrap}
+.readout .vals i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:0}
+.readout .hint{color:var(--muted);font-size:14px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 4px 4px 10px;margin-bottom:10px}
+.ptitle{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding-right:8px}
+.ptitle h2{margin:0;font:700 17px/1.1 var(--display);letter-spacing:.02em}
+.ptitle .u{color:var(--muted);font-size:12px}
+.legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:13px;margin:4px 0 2px}
+.legend i{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:5px;vertical-align:3px}
+svg{display:block;width:100%;height:auto;touch-action:pan-y;overflow:visible}
+svg text{font-family:var(--body);font-size:11px;fill:var(--muted)}
+svg .lbl{font-size:11.5px;font-weight:600;fill:var(--ink)}
+.keyrow{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin:2px 0 10px}
+.keyrow b{color:var(--ink)}
+.sw{display:inline-block;width:0;height:14px;border-left:2px solid var(--ink);margin-right:6px;vertical-align:-2px}
+.sw.dash{border-left-style:dashed;opacity:.7}
+</style>
+</head>
+<body>
+<header>
+  <h1>St. Louis · Saturday <span class="demo">DEMO</span></h1>
+  <div class="sub">Your Oct 3 readings from the SAT tab. Drag across any chart to read values.</div>
+</header>
+
+<div class="filters" role="group" aria-label="Lane">
+  <span class="lab">Lane</span>
+  <button class="chip" data-lane="all" aria-pressed="true">Both</button>
+  <button class="chip" data-lane="L" aria-pressed="false">Left</button>
+  <button class="chip" data-lane="R" aria-pressed="false">Right</button>
+</div>
+<div class="keyrow"><span><span class="sw"></span><b>Scrape</b></span><span><span class="sw dash"></span><b>Spray</b></span><span>Marked across every chart</span></div>
+
+<div class="readout" id="readout" aria-live="polite"><div class="hint">Touch or drag across a chart to see the readings at that time.</div></div>
+
+<div id="panels"></div>
+
+<script>
+"use strict";
+const DATA=[{"time": "08:40", "notes": "1320' - 40'", "type": "work", "work": "Spray"}, {"time": "09:00", "uv": 0.8, "solar": 823, "cc": 0, "air": 57, "track": 76, "type": "weather"}, {"time": "10:00", "uv": 2.7, "solar": 942, "cc": 0, "air": 60, "track": 85, "k125": 3450, "notes": "Firm, lacks tack", "type": "track"}, {"time": "11:00", "uv": 4.5, "solar": 993, "cc": 0, "air": 64, "track": 96, "type": "weather"}, {"time": "11:18", "run": "Q3", "lane": "L", "car": "PM", "uv": 5.4, "solar": 967, "cc": 0, "air": 66, "track": 98, "slKeg": 3050, "k10": 3250, "push": 7, "k60": 3230, "k80": 3200, "notes": "5.72, 249mph", "type": "run"}, {"time": "11:42", "lane": "L", "solar": 977, "cc": 0, "air": 68, "track": 102, "slKeg": 2750, "k10": 2920, "push": 4.5, "k60": 3120, "k80": 3040, "notes": "5.605et", "type": "track"}, {"time": "11:45", "notes": "Hand spray for FSS", "type": "work", "work": "Prep"}, {"time": "11:48", "run": "Q3", "lane": "R", "car": "FSS", "uv": 6.5, "solar": 980, "cc": 0, "air": 67, "track": 102, "k10": 3080, "notes": "Carl Tasca", "type": "run"}, {"time": "12:02", "notes": "85' - WB / Kenny RL", "type": "work", "work": "Scrape"}, {"time": "12:15", "notes": "660' - WB", "type": "work", "work": "Spray"}, {"time": "12:18", "lane": "L", "uv": 7.1, "solar": 1011, "air": 70, "track": 104, "slKeg": 3030, "k10": 3080, "push": 6, "k60": 3100, "k125": 3380, "sticky": 150, "k330": 3410, "nate": 8, "type": "track"}, {"time": "12:44", "lane": "L", "track": 106, "slKeg": 3000, "k10": 3100, "k60": 3100, "type": "track"}, {"time": "12:50", "notes": "Drag to 1000'", "type": "work", "work": "Prep"}, {"time": "12:55", "lane": "L", "track": 106, "k10": 3100, "push": 5.75, "k60": 3120, "type": "track"}, {"time": "13:04", "lane": "L", "track": 107, "slKeg": 2900, "k10": 3050, "push": 5.75, "k60": 3100, "type": "track"}, {"time": "13:08", "k125": 3300, "k330": 3300, "nate": 7.2, "notes": "Drag only", "type": "work", "work": "Prep"}, {"time": "13:25", "run": "Q3", "lane": "L", "car": "Austin", "uv": 6.9, "solar": 1006, "cc": 15, "air": 74, "track": 107, "slLoc": "1\"", "slKeg": 3000, "k10": 3050, "push": 6.25, "k60": 3060, "k80": "B", "k125": 3300, "sticky": 150, "k330": 3300, "nate": 7.2, "notes": "Inside seam, firmer / Light Haze / 3.91, 332mph", "type": "run"}, {"time": "13:45", "notes": "Drag only", "type": "work", "work": "Prep"}, {"time": "14:02", "run": "Q3", "lane": "L", "car": "Matt H", "uv": 6.1, "solar": 988, "cc": 15, "air": 74, "track": 113, "slLoc": "1\"", "slKeg": 2950, "k10": 3130, "push": 6, "k60": 3080, "notes": "Aggressivily goes Left", "type": "run"}, {"time": "14:10", "lane": "R", "uv": 5.9, "track": 111, "type": "weather"}, {"time": "14:25", "run": "Q4", "notes": "57' - WB / Kenny LL", "type": "work", "work": "Scrape"}, {"time": "14:37", "notes": "660' - WB", "type": "work", "work": "Spray"}, {"time": "14:43", "lane": "R", "solar": 928, "cc": 0, "air": 76, "track": 113, "slKeg": 2980, "k10": 3040, "push": 6.5, "k60": 3100, "k80": "A+", "k125": 3330, "k330": 3300, "nate": 7, "type": "track"}, {"time": "15:07", "lane": "R", "track": 110, "k10": 3040, "push": 6.5, "k60": 3090, "type": "track"}, {"time": "15:16", "lane": "R", "track": 110, "k10": 3045, "k60": 3080, "k80": "B+", "type": "track"}, {"time": "15:22", "notes": "Drag only", "type": "work", "work": "Prep"}, {"time": "15:25", "lane": "R", "track": 107, "slKeg": 2900, "k10": 3050, "k60": 3060, "k125": 3300, "k330": 3300, "nate": 7.3, "type": "track"}, {"time": "15:48", "run": "Q4", "lane": "R", "car": "Austin", "uv": 2.4, "solar": 732, "cc": 32, "air": 77, "track": 106, "slLoc": "65\"", "slKeg": 2900, "k10": 3050, "push": 6.25, "k60": 3060, "k80": "B+", "k125": 3300, "sticky": 130, "k330": 3300, "nate": 7.3, "notes": "Getting greasy, moved inside / Light Cloud / 3.88, 330 mph", "type": "run"}, {"time": "15:50", "notes": "Drag only", "type": "work", "work": "Prep"}, {"time": "16:10", "run": "Q4", "lane": "R", "car": "Matt H", "uv": 1.4, "solar": 737, "cc": 32, "air": 77, "track": 106, "slKeg": 2940, "k10": 3050, "push": 5.75, "k60": 3100, "k80": "B+", "notes": "Haze / 6.52, 210mph", "type": "run"}, {"time": "16:25", "notes": "Drag only", "type": "work", "work": "Prep"}, {"time": "16:35", "run": "Q4", "lane": "R", "car": "PM", "uv": 0.9, "solar": 641, "cc": 32, "air": 76, "track": 102, "slKeg": 3100, "k10": 3180, "push": 7, "k60": 3150, "k80": 3180, "k125": "B", "notes": "5.700, 249mph", "type": "run"}, {"time": "16:56", "lane": "R", "uv": 0.4, "solar": 511, "cc": 32, "air": 76, "track": 100, "slKeg": 2820, "k10": 2630, "push": 2.5, "k60": 2900, "k80": 3020, "notes": "Light cloud", "type": "track"}, {"time": "17:13", "notes": "1320' - 40'", "type": "work", "work": "Spray"}, {"time": "17:50", "lane": "L", "track": 92, "type": "weather"}, {"time": "18:25", "notes": "Drag only", "type": "work", "work": "Prep"}, {"time": "18:29", "notes": "1320' - 40'", "type": "work", "work": "Spray"}, {"time": "18:30", "lane": "L", "track": 89, "slKeg": 2800, "k10": 3300, "push": 8.5, "k60": 3200, "k80": 3200, "k125": "A++", "type": "track"}, {"time": "18:58", "run": "E1", "lane": "L", "car": "PM", "air": 70, "track": 87, "slKeg": 2720, "k10": 2850, "push": 3.5, "k60": 3150, "k80": 3200, "k125": "A+ ", "notes": "5.69, 250mph", "type": "run"}];
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const PANELS=[
+  {id:"temp",title:"Temperature",unit:"°F",series:[{k:"air",name:"Air",c:"--s1"},{k:"track",name:"Track",c:"--s2"}]},
+  {id:"solar",title:"Solar",unit:"W/m²",series:[{k:"solar",name:"Solar",c:"--s4"}]},
+  {id:"uv",title:"UV index",unit:"",series:[{k:"uv",name:"UV",c:"--s7"}]},
+  {id:"keg",title:"KEG",unit:"",lane:true,series:[
+    {k:"slKeg",name:"SL",c:"--s1"},{k:"k10",name:"10ft",c:"--s2"},{k:"k60",name:"60ft",c:"--s3"},
+    {k:"k80",name:"80/Stk",c:"--s4"},{k:"k125",name:"125ft",c:"--s5"},{k:"k330",name:"330ft",c:"--s6"}]},
+  {id:"sticky",title:"Sticky",unit:"",lane:true,series:[{k:"sticky",name:"Sticky",c:"--s8"}]},
+];
+const toMin=t=>{const[h,m]=t.split(":").map(Number);return h*60+m};
+const fmtT=m=>{let h=Math.floor(m/60),mm=String(Math.round(m%60)).padStart(2,"0");const ap=h>=12?"PM":"AM";h=h%12||12;return `${h}:${mm} ${ap}`};
+const num=v=>typeof v==="number"?v:(typeof v==="string"&&/^-?\d+(\.\d+)?$/.test(v)?Number(v):null);
+let lane="all";
+const events=DATA.filter(e=>e.type==="work"&&(e.work==="Scrape"||e.work==="Spray")).map(e=>({m:toMin(e.time),w:e.work,notes:e.notes||""}));
+const allMin=DATA.map(e=>toMin(e.time));
+const X0=Math.floor(Math.min(...allMin)/60)*60, X1=Math.ceil(Math.max(...allMin)/60)*60;
+const W=360,PADL=40,PADR=58,PADT=8,PADB=20,H=150;
+const xs=m=>PADL+(m-X0)/(X1-X0)*(W-PADL-PADR);
+function niceTicks(lo,hi,n=4){const span=hi-lo||1,step0=span/n,mag=10**Math.floor(Math.log10(step0)),
+  step=[1,2,2.5,5,10].map(s=>s*mag).find(s=>s>=step0);const a=Math.floor(lo/step)*step,b=Math.ceil(hi/step)*step;
+  const t=[];for(let v=a;v<=b+1e-9;v+=step)t.push(+v.toFixed(6));return t}
+function pts(s,p){return DATA.filter(e=>(!p.lane||lane==="all"||e.lane===lane)).map(e=>({m:toMin(e.time),v:num(e[s.k]),e})).filter(d=>d.v!=null&&!(s.k!=="uv"&&d.v===0&&s.k!=="cc"))}
+const svgNS="http://www.w3.org/2000/svg";
+function el(n,a,parent){const x=document.createElementNS(svgNS,n);for(const k in a)x.setAttribute(k,a[k]);if(parent)parent.appendChild(x);return x}
+const built=[];
+function build(){
+  const host=document.getElementById("panels");host.innerHTML="";built.length=0;
+  for(const p of PANELS){
+    const series=p.series.map(s=>({...s,col:css(s.c),pts:pts(s,p)}));
+    const vals=series.flatMap(s=>s.pts.map(d=>d.v));
+    const div=document.createElement("section");div.className="panel";
+    div.innerHTML=`<div class="ptitle"><h2>${p.title}</h2><span class="u">${p.unit}${p.lane&&lane!=="all"?(p.unit?" · ":"")+(lane==="L"?"Left lane":"Right lane"):""}</span></div>`+
+      (series.length>1?`<div class="legend">${series.map(s=>`<span><i style="background:${s.col}"></i>${s.name}</span>`).join("")}</div>`:"");
+    host.appendChild(div);
+    if(!vals.length){const n=document.createElement("div");n.className="hint";n.style.cssText="padding:16px 4px;color:var(--muted)";n.textContent="No readings for this lane.";div.appendChild(n);continue}
+    let lo=Math.min(...vals),hi=Math.max(...vals);const pad=(hi-lo)*.08||1;
+    const floor=lo>=0&&lo-pad<0?0:lo-pad;   // readings like UV and solar never go below zero
+    const ticks=niceTicks(floor,hi+pad,3).filter(t=>!(lo>=0&&t<0));lo=ticks[0];hi=ticks[ticks.length-1];
+    const ys=v=>PADT+(1-(v-lo)/(hi-lo))*(H-PADT-PADB);
+    const svg=el("svg",{viewBox:`0 0 ${W} ${H}`,role:"img","aria-label":`${p.title} through the day`},null);div.appendChild(svg);
+    for(const t of ticks){el("line",{x1:PADL,x2:W-PADR,y1:ys(t),y2:ys(t),stroke:css("--grid"),"stroke-width":1},svg);
+      const tx=el("text",{x:PADL-6,y:ys(t)+4,"text-anchor":"end"},svg);tx.textContent=t>=1000?t.toLocaleString():t}
+    el("line",{x1:PADL,x2:W-PADR,y1:H-PADB,y2:H-PADB,stroke:css("--axis"),"stroke-width":1},svg);
+    for(let m=X0;m<=X1;m+=120){const tx=el("text",{x:xs(m),y:H-5,"text-anchor":"middle"},svg);tx.textContent=fmtT(m).replace(":00","").replace(" ","").toLowerCase()}
+    for(const ev of events){el("line",{x1:xs(ev.m),x2:xs(ev.m),y1:PADT,y2:H-PADB,stroke:css("--ink"),"stroke-opacity":ev.w==="Scrape"?.55:.4,"stroke-width":1.5,"stroke-dasharray":ev.w==="Spray"?"4 3":""},svg)}
+    // series lines + points
+    const ends=[];
+    for(const s of series){if(!s.pts.length)continue;
+      el("path",{d:s.pts.map((d,i)=>(i?"L":"M")+xs(d.m).toFixed(1)+" "+ys(d.v).toFixed(1)).join(""),fill:"none",stroke:s.col,"stroke-width":2,"stroke-linejoin":"round","stroke-linecap":"round"},svg);
+      for(const d of s.pts)el("circle",{cx:xs(d.m),cy:ys(d.v),r:3,fill:s.col,stroke:"#fff","stroke-width":1.5},svg);
+      const last=s.pts[s.pts.length-1];ends.push({s,x:xs(last.m),y:ys(last.v)});}
+    // direct labels at the right edge, nudged apart
+    ends.sort((a,b)=>a.y-b.y);for(let i=1;i<ends.length;i++)if(ends[i].y-ends[i-1].y<12)ends[i].y=ends[i-1].y+12;
+    const over=ends.length?ends[ends.length-1].y-(H-PADB):0;if(over>0)ends.forEach(e=>e.y-=over);
+    for(const e of ends){const t=el("text",{x:W-PADR+6,y:e.y+4,class:"lbl"},svg);t.textContent=e.s.name;
+      el("circle",{cx:W-PADR+2,cy:e.y,r:2.5,fill:e.s.col},svg)}
+    const cross=el("line",{x1:0,x2:0,y1:PADT,y2:H-PADB,stroke:css("--ink"),"stroke-width":1,visibility:"hidden"},svg);
+    const dots=series.map(s=>el("circle",{r:5,fill:s.col,stroke:"#fff","stroke-width":2,visibility:"hidden"},svg));
+    built.push({svg,series,ys,cross,dots});
+    const move=ev=>{const r=svg.getBoundingClientRect();const x=(ev.clientX-r.left)/r.width*W;const m=X0+(x-PADL)/(W-PADL-PADR)*(X1-X0);hover(Math.max(X0,Math.min(X1,m)))};
+    svg.addEventListener("pointermove",move);svg.addEventListener("pointerdown",move);
+  }
+}
+function nearest(arr,m,win=25){let best=null;for(const d of arr){const g=Math.abs(d.m-m);if(g<=win&&(!best||g<Math.abs(best.m-m)))best=d}return best}
+function hover(m){
+  const out=[];
+  for(const b of built){b.cross.setAttribute("x1",xs(m));b.cross.setAttribute("x2",xs(m));b.cross.setAttribute("visibility","visible");
+    b.series.forEach((s,i)=>{const d=nearest(s.pts,m);const dot=b.dots[i];
+      if(d){dot.setAttribute("cx",xs(d.m));dot.setAttribute("cy",b.ys(d.v));dot.setAttribute("visibility","visible");out.push(`<span><i style="background:${s.col}"></i>${s.name} <b>${d.v.toLocaleString()}</b></span>`)}
+      else dot.setAttribute("visibility","hidden")})}
+  const ev=events.filter(e=>Math.abs(e.m-m)<=10).map(e=>`<span><b>${e.w}</b> ${fmtT(e.m)}${e.notes?" · "+e.notes:""}</span>`);
+  document.getElementById("readout").innerHTML=`<div class="t">${fmtT(m)}</div><div class="vals">${out.join("")||'<span class="hint">No readings within 25 min</span>'}${ev.join("")}</div>`;
+}
+document.querySelector(".filters").addEventListener("click",e=>{const b=e.target.closest("[data-lane]");if(!b)return;lane=b.dataset.lane;
+  document.querySelectorAll("[data-lane]").forEach(c=>c.setAttribute("aria-pressed",c===b?"true":"false"));build()});
+build();
+</script>
+</body>
+</html>
