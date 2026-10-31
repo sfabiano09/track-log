@@ -8,8 +8,8 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Track Log">
-<meta name="theme-color" content="#F3F4F5" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#121416" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#EEF0F2">
+<meta name="color-scheme" content="light only">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="manifest" href="manifest.json">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -18,7 +18,7 @@
 <style>
 /* Layout: one column, timing-slip rows; big tap targets for gloves and sun. Sticky-note yellow marks "add" and the active choice. */
 :root{
-  --bg:#F3F4F5; --surface:#FFFFFF; --ink:#15181B; --muted:#5E656C; --line:#D9DDE1;
+  --bg:#EEF0F2; --surface:#FFFFFF; --ink:#0B0D0F; --muted:#3E454C; --line:#AEB6BD;
   --note:#FFD43B; --note-ink:#1A1C1E; --note-soft:#FFF4C2;
   --good:#1E7F4E; --warn:#B4500A; --bad:#B42318;
   --display:"Barlow Condensed","Arial Narrow","Roboto Condensed",system-ui,sans-serif;
@@ -26,10 +26,6 @@
   --r:10px;
   color-scheme:light;
 }
-@media (prefers-color-scheme:dark){:root{
-  --bg:#121416; --surface:#1C1F22; --ink:#ECEEF0; --muted:#9AA2AA; --line:#33383D;
-  --note:#FFD43B; --note-ink:#1A1C1E; --note-soft:#3A3315;
-  --good:#5FD39A; --warn:#F2A35E; --bad:#FF8A80; color-scheme:dark}}
 *{box-sizing:border-box}
 html,body{margin:0}
 body{background:var(--bg);color:var(--ink);font:16px/1.4 var(--body);
@@ -206,7 +202,6 @@ legend{padding:0;margin-bottom:8px}
       <div class="station wide">
         <span class="label">Starting line</span>
         <div class="grid two"><div class="f"><label for="f_slKeg">KEG</label><input id="f_slKeg" inputmode="decimal"></div><div class="f"><label for="f_slLoc">Location</label><input id="f_slLoc" placeholder='e.g. 1"'></div></div>
-        <div class="f"><label>Grade</label><div class="picks small" data-grade="slGrade"></div></div>
       </div>
       <div class="station wide2">
         <span class="label">10 ft</span>
@@ -223,7 +218,6 @@ legend{padding:0;margin-bottom:8px}
       <div class="station wide">
         <span class="label">125 ft</span>
         <div class="f"><label for="f_k125">KEG</label><input id="f_k125" inputmode="decimal"></div>
-        <div class="f"><label>Grade</label><div class="picks small" data-grade="g125"></div></div>
       </div>
       <div class="station">
         <span class="label">Sticky</span>
