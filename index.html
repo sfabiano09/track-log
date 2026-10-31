@@ -71,6 +71,28 @@ header.top{display:flex;align-items:center;gap:12px;padding-block:14px 10px}
 .row .xl.ok{color:var(--good)} .row .xl.wait{color:var(--warn)} .row .xl.txt{color:var(--ink)}
 .row .xl.txt::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--note);box-shadow:0 0 0 1px var(--ink);margin-right:5px;vertical-align:1px}
 .sheet .actions .btn{padding-inline:8px}
+/* graphs: one chart per measure on a shared clock; each keeps its own scale */
+#graphs{--grid:#E3E6E9;--axis:#9AA2A9;--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s6:#008300;--s7:#6250d6;--s8:#e34948}
+.g-filters{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding-block:4px 6px}
+.g-key{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin:2px 0 8px}
+.g-key b{color:var(--ink)}
+.g-sw{display:inline-block;width:0;height:14px;border-left:2px solid var(--ink);margin-right:6px;vertical-align:-2px}
+.g-sw.dash{border-left-style:dashed;opacity:.7}
+.g-readout{position:sticky;top:64px;z-index:1;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:10px;min-height:54px}
+.g-readout .t{font:700 17px/1.1 var(--display)}
+.g-readout .vals{display:flex;flex-wrap:wrap;gap:2px 12px;font-size:13px;margin-top:3px}
+.g-readout .vals span{white-space:nowrap}
+.g-readout i,.g-legend i{display:inline-block;border-radius:50%;width:8px;height:8px;margin-right:4px}
+.g-legend i{width:14px;height:3px;border-radius:2px;vertical-align:3px;margin-right:5px}
+.g-panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 4px 4px 10px;margin-bottom:10px}
+.g-ptitle{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding-right:8px}
+.g-ptitle h3{margin:0;font:700 17px/1.1 var(--display)}
+.g-ptitle .u{color:var(--muted);font-size:12px}
+.g-legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:13px;margin:4px 0 2px}
+.g-panel svg{display:block;width:100%;height:auto;touch-action:pan-y;overflow:visible}
+.g-panel svg text{font-family:var(--body);font-size:11px;fill:var(--muted)}
+.g-panel svg .lbl{font-size:11.5px;font-weight:600;fill:var(--ink)}
+.g-none{padding:14px 4px;color:var(--muted)}
 .pick-sheet{position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.35);display:flex;align-items:flex-end}
 .pick-card{width:100%;background:var(--surface);border-radius:16px 16px 0 0;display:flex;flex-direction:column;gap:12px;
   padding:18px max(16px,env(safe-area-inset-right,0)) calc(16px + env(safe-area-inset-bottom,0)) max(16px,env(safe-area-inset-left,0))}
@@ -137,6 +159,9 @@ legend{padding:0;margin-bottom:8px}
     <h1 id="evTrack">Track Log</h1>
     <div class="sub" id="evSub"></div>
   </div>
+  <button class="iconbtn" id="openGraphs" aria-label="Graphs for this day">
+    <svg viewBox="0 0 24 24"><path d="M4 4v16h16"/><path d="M7 15l4-5 3 3 5-7"/></svg>
+  </button>
   <button class="iconbtn" id="openSettings" aria-label="Settings">
     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
   </button>
@@ -318,6 +343,24 @@ legend{padding:0;margin-bottom:8px}
     <button class="btn" type="button" id="pickDone" style="width:100%">Done</button>
   </div>
 </div>
+
+<!-- Graphs -->
+<section class="sheet" id="graphs" hidden aria-labelledby="gTitle">
+  <header>
+    <h2 id="gTitle">Graphs</h2>
+    <button class="iconbtn" id="closeGraphs" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </header>
+  <div class="help" id="gSub" style="margin:0 0 4px"></div>
+  <div class="g-filters" role="group" aria-label="Lane">
+    <span class="label" style="margin-right:4px">Lane</span>
+    <button class="chip" data-glane="all" aria-pressed="true">Both</button>
+    <button class="chip" data-glane="L" aria-pressed="false">Left</button>
+    <button class="chip" data-glane="R" aria-pressed="false">Right</button>
+  </div>
+  <div class="g-key"><span><span class="g-sw"></span><b>Scrape</b></span><span><span class="g-sw dash"></span><b>Spray</b></span><span>Marked across every chart</span></div>
+  <div class="g-readout" id="gReadout" aria-live="polite"><div class="help">Touch or drag across a chart to see the readings at that time.</div></div>
+  <div id="gPanels"></div>
+</section>
 
 <!-- Settings -->
 <section class="sheet" id="settings" hidden aria-labelledby="setTitle">
@@ -968,6 +1011,84 @@ function renderPhones(nums){
 function currentPhones(){return [...document.querySelectorAll("#phoneList input")].map(i=>i.value)}
 $("addPhone").onclick=()=>{const n=currentPhones();n.push("");renderPhones(n);const all=document.querySelectorAll("#phoneList input");all[all.length-1].focus()};
 $("phoneList").onclick=e=>{const b=e.target.closest("[data-rm]");if(!b)return;const n=currentPhones();n.splice(+b.dataset.rm,1);renderPhones(n)};
+/* ---------- graphs ---------- */
+const G_PANELS=[
+  {title:"Temperature",unit:"°F",series:[{k:"air",name:"Air",c:"--s1"},{k:"track",name:"Track",c:"--s2"}]},
+  {title:"Solar",unit:"W/m²",series:[{k:"solar",name:"Solar",c:"--s4"}]},
+  {title:"UV index",unit:"",series:[{k:"uv",name:"UV",c:"--s7"}]},
+  {title:"KEG",unit:"",lane:true,series:[{k:"slKeg",name:"SL",c:"--s1"},{k:"k10",name:"10ft",c:"--s2"},{k:"k60",name:"60ft",c:"--s3"},
+    {k:"k80",name:"80ft",c:"--s4"},{k:"k125",name:"125ft",c:"--s5"},{k:"k330",name:"330ft",c:"--s6"}]},
+  {title:"Sticky",unit:"",lane:true,series:[{k:"slSticky",name:"SL Sticky",c:"--s1"},{k:"sticky",name:"Sticky",c:"--s8"}]},
+  {title:"Push (10 ft)",unit:"",lane:true,series:[{k:"push",name:"Push",c:"--s3"}]},
+  {title:"Nate",unit:"",lane:true,series:[{k:"nate",name:"Nate",c:"--s6"}]},
+];
+let gLane="all",gBuilt=[],gEvents=[],gX0=0,gX1=1;
+const G={W:360,L:40,R:58,T:8,B:20,H:150};
+const gMin=t=>{const[h,m]=(t||"0:0").split(":").map(Number);return h*60+m};
+const gNum=v=>{if(v===""||v==null)return null;const n=Number(v);return isFinite(n)?n:null};
+const gx=m=>G.L+(m-gX0)/(gX1-gX0)*(G.W-G.L-G.R);
+const gcss=n=>getComputedStyle($("graphs")).getPropertyValue(n).trim();
+const SVGNS="http://www.w3.org/2000/svg";
+function gel(n,a,p){const x=document.createElementNS(SVGNS,n);for(const k in a)x.setAttribute(k,a[k]);if(p)p.appendChild(x);return x}
+function gTicks(lo,hi,n=3){const span=hi-lo||1,s0=span/n,mag=10**Math.floor(Math.log10(s0)),st=[1,2,2.5,5,10].map(s=>s*mag).find(s=>s>=s0);
+  const a=Math.floor(lo/st)*st,b=Math.ceil(hi/st)*st,t=[];for(let v=a;v<=b+1e-9;v+=st)t.push(+v.toFixed(6));return t}
+function gFmt(m){let h=Math.floor(m/60);const mm=String(Math.round(m%60)).padStart(2,"0"),ap=h>=12?"PM":"AM";h=h%12||12;return `${h}:${mm} ${ap}`}
+function buildGraphs(){
+  const day=dayEntries(curDate),host=$("gPanels");host.innerHTML="";gBuilt=[];
+  $("gSub").textContent=`${cfg.track} · ${prettyDate(curDate)}`;
+  $("gReadout").innerHTML='<div class="help">Touch or drag across a chart to see the readings at that time.</div>';
+  if(!day.length){host.innerHTML='<div class="empty"><strong>No readings for this day yet</strong>Log a few and the trends show up here.</div>';return}
+  const mins=day.map(e=>gMin(e.time));gX0=Math.floor(Math.min(...mins)/60)*60;gX1=Math.max(gX0+60,Math.ceil(Math.max(...mins)/60)*60);
+  gEvents=day.filter(e=>e.type==="work"&&(e.work==="Scrape"||e.work==="Spray")).map(e=>({m:gMin(e.time),w:e.work,notes:e.notes||""}));
+  for(const p of G_PANELS){
+    const series=p.series.map(s=>({...s,col:gcss(s.c),pts:day.filter(e=>!p.lane||gLane==="all"||e.lane===gLane)
+      .map(e=>({m:gMin(e.time),v:gNum(e[s.k])})).filter(d=>d.v!=null)}));
+    const vals=series.flatMap(s=>s.pts.map(d=>d.v));
+    const div=document.createElement("section");div.className="g-panel";
+    div.innerHTML=`<div class="g-ptitle"><h3>${p.title}</h3><span class="u">${p.unit}${p.lane&&gLane!=="all"?(p.unit?" · ":"")+(gLane==="L"?"Left lane":"Right lane"):""}</span></div>`+
+      (series.length>1?`<div class="g-legend">${series.map(s=>`<span><i style="background:${s.col}"></i>${s.name}</span>`).join("")}</div>`:"");
+    host.appendChild(div);
+    if(!vals.length){const n=document.createElement("div");n.className="g-none";n.textContent="No readings yet.";div.appendChild(n);continue}
+    let lo=Math.min(...vals),hi=Math.max(...vals);const pad=(hi-lo)*.08||1;
+    const ticks=gTicks(lo>=0&&lo-pad<0?0:lo-pad,hi+pad).filter(t=>!(lo>=0&&t<0));lo=ticks[0];hi=ticks[ticks.length-1];
+    const ys=v=>G.T+(1-(v-lo)/(hi-lo||1))*(G.H-G.T-G.B);
+    const svg=gel("svg",{viewBox:`0 0 ${G.W} ${G.H}`,role:"img","aria-label":`${p.title} through the day`});div.appendChild(svg);
+    for(const t of ticks){gel("line",{x1:G.L,x2:G.W-G.R,y1:ys(t),y2:ys(t),stroke:gcss("--grid")},svg);
+      gel("text",{x:G.L-6,y:ys(t)+4,"text-anchor":"end"},svg).textContent=t>=1000?t.toLocaleString():t}
+    gel("line",{x1:G.L,x2:G.W-G.R,y1:G.H-G.B,y2:G.H-G.B,stroke:gcss("--axis")},svg);
+    for(let m=gX0;m<=gX1;m+=60){const hr=Math.floor(m/60),h12=hr%12||12;
+      gel("line",{x1:gx(m),x2:gx(m),y1:G.H-G.B,y2:G.H-G.B+3,stroke:gcss("--axis")},svg);
+      gel("text",{x:gx(m),y:G.H-5,"text-anchor":"middle"},svg).textContent=(m===gX0||m===gX1)?h12+(hr<12?"am":"pm"):String(h12)}
+    for(const ev of gEvents)gel("line",{x1:gx(ev.m),x2:gx(ev.m),y1:G.T,y2:G.H-G.B,stroke:"#0B0D0F","stroke-opacity":ev.w==="Scrape"?.55:.4,"stroke-width":1.5,"stroke-dasharray":ev.w==="Spray"?"4 3":""},svg);
+    const ends=[];
+    for(const s of series){if(!s.pts.length)continue;
+      gel("path",{d:s.pts.map((d,i)=>(i?"L":"M")+gx(d.m).toFixed(1)+" "+ys(d.v).toFixed(1)).join(""),fill:"none",stroke:s.col,"stroke-width":2,"stroke-linejoin":"round","stroke-linecap":"round"},svg);
+      for(const d of s.pts)gel("circle",{cx:gx(d.m),cy:ys(d.v),r:3,fill:s.col,stroke:"#fff","stroke-width":1.5},svg);
+      const last=s.pts[s.pts.length-1];ends.push({s,y:ys(last.v)})}
+    ends.sort((a,b)=>a.y-b.y);for(let i=1;i<ends.length;i++)if(ends[i].y-ends[i-1].y<12)ends[i].y=ends[i-1].y+12;
+    const over=ends.length?ends[ends.length-1].y-(G.H-G.B):0;if(over>0)ends.forEach(e=>e.y-=over);
+    for(const e of ends){gel("circle",{cx:G.W-G.R+2,cy:e.y,r:2.5,fill:e.s.col},svg);gel("text",{x:G.W-G.R+6,y:e.y+4,class:"lbl"},svg).textContent=e.s.name}
+    const cross=gel("line",{x1:0,x2:0,y1:G.T,y2:G.H-G.B,stroke:"#0B0D0F",visibility:"hidden"},svg);
+    const dots=series.map(s=>gel("circle",{r:5,fill:s.col,stroke:"#fff","stroke-width":2,visibility:"hidden"},svg));
+    gBuilt.push({series,ys,cross,dots});
+    const move=ev=>{const r=svg.getBoundingClientRect(),x=(ev.clientX-r.left)/r.width*G.W,m=gX0+(x-G.L)/(G.W-G.L-G.R)*(gX1-gX0);gHover(Math.max(gX0,Math.min(gX1,m)))};
+    svg.addEventListener("pointermove",move);svg.addEventListener("pointerdown",move);
+  }
+}
+function gHover(m){
+  const near=arr=>{let b=null;for(const d of arr){const g=Math.abs(d.m-m);if(g<=25&&(!b||g<Math.abs(b.m-m)))b=d}return b};
+  const out=[];
+  for(const b of gBuilt){b.cross.setAttribute("x1",gx(m));b.cross.setAttribute("x2",gx(m));b.cross.setAttribute("visibility","visible");
+    b.series.forEach((s,i)=>{const d=near(s.pts),dot=b.dots[i];
+      if(d){dot.setAttribute("cx",gx(d.m));dot.setAttribute("cy",b.ys(d.v));dot.setAttribute("visibility","visible");out.push(`<span><i style="background:${s.col}"></i>${esc(s.name)} <b>${d.v.toLocaleString()}</b></span>`)}
+      else dot.setAttribute("visibility","hidden")})}
+  const ev=gEvents.filter(e=>Math.abs(e.m-m)<=10).map(e=>`<span><b>${e.w}</b> ${gFmt(e.m)}${e.notes?" · "+esc(e.notes):""}</span>`);
+  $("gReadout").innerHTML=`<div class="t">${gFmt(m)}</div><div class="vals">${out.join("")||'<span class="help">No readings within 25 min</span>'}${ev.join("")}</div>`;
+}
+$("openGraphs").onclick=()=>{$("graphs").hidden=false;$("graphs").scrollTop=0;document.body.style.overflow="hidden";buildGraphs()};
+$("closeGraphs").onclick=()=>{$("graphs").hidden=true;document.body.style.overflow=""};
+document.querySelector(".g-filters").addEventListener("click",e=>{const b=e.target.closest("[data-glane]");if(!b)return;gLane=b.dataset.glane;
+  document.querySelectorAll("[data-glane]").forEach(c=>c.setAttribute("aria-pressed",c===b?"true":"false"));buildGraphs()});
 $("openSettings").onclick=openSettings;
 $("closeSettings").onclick=()=>{readSettings();$("settings").hidden=true;document.body.style.overflow="";render()};
 $("saveSettings").onclick=$("closeSettings").onclick;
