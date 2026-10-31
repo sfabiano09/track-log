@@ -201,7 +201,7 @@ legend{padding:0;margin-bottom:8px}
     <div class="stations">
       <div class="station wide">
         <span class="label">Starting line</span>
-        <div class="grid two"><div class="f"><label for="f_slKeg">KEG</label><input id="f_slKeg" inputmode="decimal"></div><div class="f"><label for="f_slLoc">Location</label><input id="f_slLoc" placeholder='e.g. 1"'></div></div>
+        <div class="grid"><div class="f"><label for="f_slLoc">Location</label><input id="f_slLoc" placeholder='1"'></div><div class="f"><label for="f_slKeg">KEG</label><input id="f_slKeg" inputmode="decimal"></div><div class="f"><label for="f_slSticky">Sticky</label><input id="f_slSticky" inputmode="decimal"></div></div>
       </div>
       <div class="station wide2">
         <span class="label">10 ft</span>
@@ -212,7 +212,7 @@ legend{padding:0;margin-bottom:8px}
         <div class="f"><label for="f_k60">KEG</label><input id="f_k60" inputmode="decimal"></div>
       </div>
       <div class="station">
-        <span class="label">80ft / Sticky</span>
+        <span class="label">80 ft</span>
         <div class="f"><label for="f_k80">KEG</label><input id="f_k80" inputmode="decimal"></div>
       </div>
       <div class="station wide">
@@ -456,7 +456,7 @@ function save(){store.set("tl.entries",entries)}
 let tt;function toast(msg){const t=$("toast");t.textContent=msg;t.hidden=false;clearTimeout(tt);tt=setTimeout(()=>t.hidden=true,2600)}
 
 /* ---------- Excel row: columns A..W in the SAT/SUN tab order ---------- */
-const COLS = ["time","run","lane","car","uv","solar","cc","air","track","slLoc","slKeg","slGrade","k10","push","k60","k80","k125","g125","sticky","k330","g330","nate","notes"];
+const COLS = ["time","run","lane","car","uv","solar","cc","air","track","slLoc","slKeg","slStk","k10","push","k60","k80","k125","g125","sticky","k330","g330","nate","notes"];
 function notesText(e){
   const parts=[];
   if(has(e.notes))parts.push(e.notes.trim());
@@ -465,7 +465,7 @@ function notesText(e){
 }
 function excelRow(e){
   return COLS.map(c=>{
-    let v = c==="time"?time12(e.time): c==="car"?(e.type==="work"?e.work:e.car): c==="notes"?notesText(e): e[c];
+    let v = c==="time"?time12(e.time): c==="car"?(e.type==="work"?e.work:e.car): c==="notes"?notesText(e): c==="slStk"?(has(e.slSticky)?e.slSticky:e.slGrade): e[c];
     return has(v)?String(v).replace(/[\t\r\n]+/g," "):"";
   }).join("\t")+"\t"; // trailing empty X cell: Notes is merged W:X in the day tabs, so the paste must cover both
 }
@@ -481,10 +481,10 @@ function message(e){
   const wx=[has(e.track)&&"Track "+e.track+"°", has(e.air)&&"Air "+e.air+"°", has(e.uv)&&"UV "+e.uv, has(e.solar)&&"Solar "+e.solar, has(e.cc)&&"CC "+e.cc+"%"].filter(Boolean);
   if(wx.length)L.push(wx.join(" · "));
   const k=[];
-  if(has(e.slKeg)||has(e.slLoc)||has(e.slGrade))k.push("SL "+[e.slLoc,e.slKeg,e.slGrade].filter(has).join(" "));
+  if(has(e.slKeg)||has(e.slLoc)||has(e.slSticky)||has(e.slGrade))k.push("SL "+[e.slLoc,e.slKeg,has(e.slSticky)&&("Stk "+e.slSticky),e.slGrade].filter(has).join(" "));
   if(has(e.k10)||has(e.push))k.push("10' "+[e.k10,has(e.push)&&("P"+e.push)].filter(Boolean).join(" "));
   if(has(e.k60))k.push("60' "+e.k60);
-  if(has(e.k80))k.push("80ft/Sticky "+e.k80);
+  if(has(e.k80))k.push("80' "+e.k80);
   if(has(e.k125)||has(e.g125))k.push("125' "+[e.k125,e.g125].filter(has).join(" "));
   if(has(e.sticky))k.push("Sticky "+e.sticky);
   if(has(e.k330)||has(e.g330))k.push("330' "+[e.k330,e.g330].filter(has).join(" "));
@@ -552,7 +552,7 @@ function rowHTML(e){
   const n=[];
   const add=(lab,v)=>{if(has(v))n.push(`<b>${lab}</b>${esc(v)}`)};
   add("TRK ",e.track);add("AIR ",e.air);add("UV ",e.uv);add("SOL ",e.solar);
-  add("SL ",[e.slKeg,e.slGrade].filter(has).join(" "));add("10′ ",e.k10);add("P ",e.push);add("60′ ",e.k60);add("80/STK ",e.k80);
+  add("SL ",[e.slKeg,e.slGrade].filter(has).join(" "));add("SL STK ",e.slSticky);add("10′ ",e.k10);add("P ",e.push);add("60′ ",e.k60);add("80′ ",e.k80);
   add("125′ ",[e.k125,e.g125].filter(has).join(" "));add("STK ",e.sticky);add("330′ ",[e.k330,e.g330].filter(has).join(" "));
   const who=e.type==="work"?e.work:e.car;
   const head=[e.run&&`<span class="tag">${esc(e.run)}</span>`, esc([who, e.lane&&("Lane "+e.lane)].filter(has).join(" · ")||TYPE_NAME[e.type])].filter(Boolean).join("");
@@ -565,7 +565,7 @@ function rowHTML(e){
 
 /* ---------- entry form ---------- */
 let editing=null;      // entry object being edited
-const FIELDS=["time","run","lane","uv","solar","cc","air","track","slLoc","slKeg","k10","push","k60","k80","k125","sticky","k330","nate","et","mph","notes"];
+const FIELDS=["time","run","lane","uv","solar","cc","air","track","slLoc","slKeg","slSticky","k10","push","k60","k80","k125","sticky","k330","nate","et","mph","notes"];
 function fill(sel,opts){sel.innerHTML=opts.map(o=>`<option value="${esc(o)}">${o||"—"}</option>`).join("")}
 function picks(el,opts,current,onPick){
   el.innerHTML=opts.map(o=>`<button type="button" class="pick" aria-pressed="${o===current}" data-v="${esc(o)}">${esc(o)}</button>`).join("");
