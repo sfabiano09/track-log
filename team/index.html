@@ -127,6 +127,15 @@ tr.pending td.c-time::after{content:" ⟳";color:var(--warn)}
 .vtab{border:0;background:none;padding:10px 16px;font:700 18px/1 var(--display);letter-spacing:.04em;color:var(--muted);border-bottom:3px solid transparent;margin-bottom:-1px}
 .vtab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink)}
 .logwrap{max-width:900px}
+/* wide screens: Right now stays put on the left, the log scrolls on the right */
+@media (min-width:1100px){
+  .logwrap{max-width:none}
+  .logsplit{display:grid;grid-template-columns:minmax(0,46fr) minmax(0,54fr);gap:20px;align-items:start}
+  .lcol{position:sticky;top:10px;max-height:calc(100vh - 20px);overflow-y:auto;border-radius:14px;container-type:inline-size;scrollbar-width:thin}
+  .lcol .tlv-lines{grid-template-columns:repeat(6,minmax(0,1fr))}
+  .rcol .logctl{margin-top:0}
+}
+@container (max-width:760px){ .tlv-simlist{grid-template-columns:1fr} }
 .logctl{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:12px 0 8px}
 .loghead{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:10px}
 .loghead h2{margin:0;font:700 26px/1 var(--display)} .loghead .d{font:600 20px/1 var(--display);color:var(--muted)}
@@ -173,7 +182,9 @@ tr.pending td.c-time::after{content:" ⟳";color:var(--warn)}
 
   <section id="vLog" class="logwrap tlv" aria-label="Log">
     <div class="loghead"><h2 id="logTitle">—</h2><span class="d" id="logDay"></span></div>
-    <div id="rightNow"></div>
+    <div class="logsplit">
+    <div class="lcol"><div id="rightNow"></div></div>
+    <div class="rcol">
     <div class="logctl">
       <span class="label">Lane</span>
       <button class="chip" data-llane="all" aria-pressed="true">Both</button>
@@ -183,6 +194,8 @@ tr.pending td.c-time::after{content:" ⟳";color:var(--warn)}
       <button class="chip" id="logOrder" aria-pressed="false">Newest first</button>
     </div>
     <div id="logList"></div>
+    </div>
+    </div>
   </section>
 
   <section class="sheet-card" id="vSheet" hidden aria-labelledby="sheetTitle">
