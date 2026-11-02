@@ -164,20 +164,20 @@
   /** The race-day log: track work as dividers, runs in bold boxes, KEG strips with change vs the same lane. */
   function log(rawRows, { lane = "all", newestFirst = true, onlyKey = false } = {}) {
     const all = prep(rawRows);
-    const RANGE = {}; for (const [k] of STATIONS) { const v = all.map(e => num(e[k])).filter(x => x != null); RANGE[k] = v.length ? [Math.min(...v), Math.max(...v)] : null; }
-    const shade = (k, v) => { const r = RANGE[k]; if (!r || r[1] === r[0]) return 3; return Math.min(6, 1 + Math.floor((v - r[0]) / (r[1] - r[0]) * 5.999)); };
     const prevSame = (e, k) => { for (let i = all.indexOf(e) - 1; i >= 0; i--) { const x = all[i]; if ((x.lane || "") === (e.lane || "") && num(x[k]) != null) return x; } return null; };
     const wx = e => { const p = []; const a = (l, k, u = "") => { if (has(e[k])) p.push(`${l} <b>${esc(e[k])}${u}</b>`); };
-      a("Track", "track", "°"); a("Air", "air", "°"); a("Solar", "solar"); a("UV", "uv"); a("CC", "cc", "%"); return p.join(" · "); };
+      a("Air", "air", "°"); a("Solar", "solar"); a("UV", "uv"); a("CC", "cc", "%"); return p.join(" · "); };
+    // track temp, big so it reads at a glance
+    const temp = e => has(e.track) ? `<span class="tlv-temp"><b>${esc(e.track)}°</b><i>Track</i></span>` : "";
     const strip = e => {
       if (!STATIONS.some(([k]) => has(e[k]))) return "";
       return `<div class="tlv-strip">${STATIONS.map(([k, lab]) => {
         const raw = e[k], v = num(raw);
-        if (!has(raw)) return `<div class="tlv-st empty"><div class="n">—</div><div class="s">${lab}</div></div>`;
+        if (!has(raw)) return `<div class="tlv-st none"><div class="n">—</div><div class="s">${lab}</div></div>`;
         if (v == null) return `<div class="tlv-st txt"><div class="n">${esc(raw)}</div><div class="s">${lab}</div></div>`;
-        const lvl = shade(k, v), p = prevSame(e, k); let dl = "";
+        const p = prevSame(e, k); let dl = "";
         if (p) { const d = v - num(p[k]); if (d) dl = `<div class="dl ${d > 0 ? "up" : "down"}">${d > 0 ? "▲" : "▼"}${Math.abs(+d.toFixed(2))}</div>`; }
-        return `<div class="tlv-st ${lvl >= 4 ? "dark" : ""}" style="background:var(--k${lvl})"><div class="n">${v}</div><div class="s">${lab}</div>${dl}</div>`;
+        return `<div class="tlv-st"><div class="n">${v}</div><div class="s">${lab}</div>${dl}</div>`;
       }).join("")}</div>`;
     };
     const extras = e => { const x = []; const add = (lab, k) => { if (has(e[k])) x.push(`${lab} <b>${esc(e[k])}</b>`); };
@@ -185,18 +185,18 @@
       return x.length ? `<div class="tlv-extras">${x.join("")}</div>` : ""; };
     let rows = all.filter(e => lane === "all" || e.type === "work" || e.type === "weather" || e.lane === lane);
     if (newestFirst) rows = rows.slice().reverse();
-    const key = `<div class="tlv-key"><span>KEG shading for each spot on the track:</span><span>lower</span><span class="ramp">${[1, 2, 3, 4, 5, 6].map(i => `<i style="background:var(--k${i})"></i>`).join("")}</span><span>higher than the day's other readings · ▲▼ change from the last reading in the same lane</span></div>`;
+    const key = `<div class="tlv-key"><span>KEG ▲▼ = change from the last reading in the same lane</span></div>`;
     if (!rows.length) return key + `<div class="tlv-empty">No readings logged for this day yet.</div>`;
     return key + `<div class="tlv-log">${rows.map(e => {
       const pend = e._pending ? " pending" : "";
       if (e.type === "work") return `<div class="tlv-work ${String(e.work || "").toLowerCase()}"><span class="wt">${short(e.m)}</span><span class="wl">${esc(e.work)}</span><span class="wn">${esc(e.notes || "")}</span></div>`;
-      if (e.type === "weather") return `<div class="tlv-e weather${pend}"><div><span class="t">${short(e.m)}</span></div><div class="body"><div class="head">Weather · <span class="meta">${wx(e)}</span></div>${e.notes ? `<div class="note">${esc(e.notes)}</div>` : ""}</div></div>`;
+      if (e.type === "weather") return `<div class="tlv-e weather${pend}"><div><span class="t">${short(e.m)}</span></div><div class="body"><div class="head">Weather ${temp(e)}<span class="meta">${wx(e)}</span></div>${e.notes ? `<div class="note">${esc(e.notes)}</div>` : ""}</div></div>`;
       if (e.type === "run") { const n = plainNotes(e);
         return `<div class="tlv-e run${pend}"><div><span class="t">${short(e.m)}</span><span class="ty">Run</span></div><div class="body">
-          <div class="head">${has(e.run) ? `<span class="tlv-tag">${esc(e.run)}</span>` : ""}<span class="tlv-car ${carCls(e.car)}">${esc(e.car)}</span>${e.lane ? `<span class="tlv-lane ${esc(e.lane)}">${esc(e.lane)}</span>` : ""}<span class="tlv-result">${esc(result(e))}</span></div>
+          <div class="head">${has(e.run) ? `<span class="tlv-tag">${esc(e.run)}</span>` : ""}<span class="tlv-car ${carCls(e.car)}">${esc(e.car)}</span>${e.lane ? `<span class="tlv-lane ${esc(e.lane)}">${esc(e.lane)}</span>` : ""}${temp(e)}<span class="tlv-result">${esc(result(e))}</span></div>
           <div class="meta">${wx(e)}</div>${strip(e)}${extras(e)}${n ? `<div class="note">${esc(n)}</div>` : ""}</div></div>`; }
       return `<div class="tlv-e${pend}"><div><span class="t">${short(e.m)}</span><span class="ty">Track</span></div><div class="body">
-        <div class="head">Track reading${e.lane ? ` <span class="tlv-lane ${esc(e.lane)}">${esc(e.lane)}</span>` : ""}<span class="meta" style="margin-left:6px">${wx(e)}</span></div>
+        <div class="head">${e.lane ? `<span class="tlv-lane ${esc(e.lane)}">${esc(e.lane)}</span>` : ""}${temp(e)}<span class="meta">${wx(e)}</span></div>
         ${strip(e)}${extras(e)}${e.notes ? `<div class="note">${esc(e.notes)}</div>` : ""}</div></div>`;
     }).join("")}</div>`;
   }

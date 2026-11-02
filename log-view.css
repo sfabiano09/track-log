@@ -86,18 +86,22 @@
 .tlv-work .wn{font-size:14px;color:var(--tlv-muted);overflow-wrap:anywhere;min-width:0}
 .tlv-work.scrape{--wcol:#E07A45;--wbg:#F6C6AD} .tlv-work.spray{--wcol:#C9B400;--wbg:#FFFF99}
 .tlv-work.prep{--wcol:#E0A400;--wbg:#FFC000} .tlv-work.delay{--wcol:#C00;--wbg:#FFE3E3;--wink:#B00}
-.tlv-strip{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:3px;margin-top:6px;max-width:560px}
-.tlv-st{border-radius:5px;padding:4px 2px 3px;text-align:center;min-width:0;color:var(--tlv-ink)}
-.tlv-st .n{font:700 15px/1.05 var(--tlv-display);overflow:hidden}
+.tlv-strip{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:3px;margin-top:6px;max-width:372px}
+.tlv-st{border-radius:5px;padding:2px 1px;text-align:center;min-width:0;color:var(--tlv-ink);background:#fff;border:1px solid var(--tlv-hair)}
+.tlv-st .n{font:700 14px/1.05 var(--tlv-display);overflow:hidden}
 .tlv-st .s{font:600 10px/1 var(--tlv-display);letter-spacing:.06em;text-transform:uppercase;opacity:.85}
 .tlv-st .dl{font-size:10.5px;line-height:1.1;white-space:nowrap}
-.tlv-st.empty{background:repeating-linear-gradient(135deg,#F3F4F5 0 5px,#E9EBED 5px 10px);color:#8A9197}
+.tlv-st.none{background:#F6F7F8;border-color:#ECEEF0;color:#A3A9AE}
 .tlv-st.txt{background:#F2F2F2}
 .tlv-st.dark{color:#fff}
 .tlv .up{color:var(--tlv-up)} .tlv .down{color:var(--tlv-down)}
 .tlv-st.dark .up{color:#B9F3CF} .tlv-st.dark .down{color:#FFC2BB}
 .tlv-extras{display:flex;gap:4px 14px;flex-wrap:wrap;font-size:13px;margin-top:5px;color:var(--tlv-muted)}
 .tlv-extras b{color:var(--tlv-ink);font-weight:600}
+.tlv-temp{display:inline-flex;align-items:baseline;gap:4px;padding:1px 8px 1px 7px;border-radius:6px;background:#FFF1E8;border:1.5px solid #E36A2E}
+.tlv-temp b{font:700 24px/1.05 var(--tlv-display);color:#B23F06}
+.tlv-temp i{font:600 11px/1 var(--tlv-display);font-style:normal;letter-spacing:.08em;text-transform:uppercase;color:#B23F06}
+.tlv-e.weather .tlv-temp b{font-size:20px}
 .tlv-key{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--tlv-muted);margin:2px 0 10px;flex-wrap:wrap}
 .tlv-key .ramp{display:inline-flex;border-radius:4px;overflow:hidden}
 .tlv-key .ramp i{width:22px;height:12px}
