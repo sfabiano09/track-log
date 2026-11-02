@@ -1090,7 +1090,7 @@ const G_PANELS=[
   {title:"Nate",unit:"",lane:true,series:[{k:"nate",name:"Nate",c:"--s6"}]},
 ];
 let gLane="all",gBuilt=[],gEvents=[],gX0=0,gX1=1;
-const G={W:360,L:40,R:58,T:8,B:20,H:150};
+const G={W:360,L:40,R:58,T:8,B:20,H:230};
 const gMin=t=>{const[h,m]=(t||"0:0").split(":").map(Number);return h*60+m};
 const gNum=v=>{if(v===""||v==null)return null;const n=Number(v);return isFinite(n)?n:null};
 const gx=m=>G.L+(m-gX0)/(gX1-gX0)*(G.W-G.L-G.R);
@@ -1117,7 +1117,7 @@ function buildGraphs(){
     host.appendChild(div);
     if(!vals.length){const n=document.createElement("div");n.className="g-none";n.textContent="No readings yet.";div.appendChild(n);continue}
     let lo=Math.min(...vals),hi=Math.max(...vals);const pad=(hi-lo)*.08||1;
-    const ticks=gTicks(lo>=0&&lo-pad<0?0:lo-pad,hi+pad).filter(t=>!(lo>=0&&t<0));lo=ticks[0];hi=ticks[ticks.length-1];
+    const ticks=gTicks(lo>=0&&lo-pad<0?0:lo-pad,hi+pad,4).filter(t=>!(lo>=0&&t<0));lo=ticks[0];hi=ticks[ticks.length-1];
     const ys=v=>G.T+(1-(v-lo)/(hi-lo||1))*(G.H-G.T-G.B);
     const svg=gel("svg",{viewBox:`0 0 ${G.W} ${G.H}`,role:"img","aria-label":`${p.title} through the day`});div.appendChild(svg);
     for(const t of ticks){gel("line",{x1:G.L,x2:G.W-G.R,y1:ys(t),y2:ys(t),stroke:gcss("--grid")},svg);

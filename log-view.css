@@ -25,7 +25,10 @@
 .tlv-nl .ago{font:700 13px/1.2 var(--tlv-display);letter-spacing:.06em;text-transform:uppercase;color:var(--tlv-note)}
 .tlv-nl .ago.old{color:#C9CED3}
 .tlv-nl.spray{box-shadow:inset 4px 0 0 #FFFF99} .tlv-nl.scrape{box-shadow:inset 4px 0 0 #F6C6AD}
+.tlv-runs{display:contents}
 .tlv-nl.lastrun{grid-column:1/-1}
+.tlv-nl.car-austin{box-shadow:inset 4px 0 0 #3D6BFF} .tlv-nl.car-matt{box-shadow:inset 4px 0 0 #CDEBF8} .tlv-nl.car-pm{box-shadow:inset 4px 0 0 #92D050}
+@media (min-width:900px){.tlv-lines{grid-template-columns:repeat(6,minmax(0,1fr))}.tlv-nl.spray,.tlv-nl.scrape{grid-column:span 3}.tlv-nl.lastrun{grid-column:span 2}}
 .tlv-nl .runnums{margin-top:5px;font-size:13.5px;line-height:1.45;color:#C9CED3;overflow-wrap:anywhere}
 .tlv-nl .runnums b{color:#fff;font-weight:600}
 @media (max-width:560px){.tlv-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.tlv-stat .v{font-size:26px}}

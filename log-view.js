@@ -11,6 +11,7 @@
   const short = m => fmt(m).replace(/ [AP]M$/, "");
   const ago = mins => mins < 1 ? "just now" : mins < 60 ? `${mins} min ago` : `${Math.floor(mins / 60)} hr ${mins % 60 ? mins % 60 + " min " : ""}ago`;
   const agoShort = a => a < 1 ? "now" : a < 60 ? a + "m ago" : Math.floor(a / 60) + "h " + (a % 60) + "m ago";
+  const TEAM_CARS = [["Austin", "austin"], ["Matt H", "matt"], ["PM", "pm"]];
   const STATIONS = [["slKeg", "SL"], ["k10", "10'"], ["k60", "60'"], ["k80", "80'"], ["k125", "125'"], ["k330", "330'"]];
 
   function prep(rows) { return rows.map((e, i) => ({ ...e, m: toMin(e.time), i })).sort((a, b) => a.m - b.m || a.i - b.i); }
@@ -51,10 +52,13 @@
     const when = e => today ? `<div class="ago ${now - e.m > 60 ? "old" : ""}">${ago(now - e.m)} · ${fmt(e.m)}</div>` : `<div class="ago old">${fmt(e.m)}</div>`;
     const prepBox = (w, cls) => { const e = lastBefore(upto, x => x.type === "work" && x.work === w, now);
       return `<div class="tlv-nl ${cls}"><div class="label">Last ${w.toLowerCase()}</div>` + (e ? `<div class="what">${esc(e.notes || w)}</div>${when(e)}` : `<div class="what">None yet today</div>`) + `</div>`; };
-    const run = lastBefore(upto, e => e.type === "run", now);
-    const runBox = `<div class="tlv-nl lastrun"><div class="label">Last run</div>` + (run ?
-      `<div class="what">${[run.run, run.car, run.lane && run.lane + " lane", result(run)].filter(has).map(esc).join(" · ")}</div>${when(run)}${runNumbers(run)}`
-      : `<div class="what">None yet today</div>`) + `</div>`;
+    // the latest run for each of the team's cars
+    const runBox = TEAM_CARS.map(([name, cls]) => {
+      const run = lastBefore(upto, e => e.type === "run" && carCls(e.car) === cls, now);
+      return `<div class="tlv-nl lastrun car-${cls}"><div class="label">Last ${esc(name)} run</div>` + (run ?
+        `<div class="what">${[run.run, run.lane && run.lane + " lane", result(run)].filter(has).map(esc).join(" · ")}</div>${when(run)}${runNumbers(run)}`
+        : `<div class="what">No run yet today</div>`) + `</div>`;
+    }).join("");
     return `<section class="tlv-now" aria-label="${today ? "Right now" : "End of day"}"><div class="nowhead"><span class="label">${today ? "Right now" : "End of day"}</span><span class="asof">${today ? "as of " + fmt(now) : "final readings"}</span></div>
       <div class="tlv-grid">${stat("track", "Track", "°")}${stat("air", "Air", "°")}${stat("solar", "Solar", "")}${stat("uv", "UV", "", 1)}${stat("cc", "Cloud", "%")}</div>
       <div class="tlv-lines">${prepBox("Spray", "spray")}${prepBox("Scrape", "scrape")}${runBox}</div></section>`;

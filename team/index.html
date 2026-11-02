@@ -110,7 +110,7 @@ tr.pending td.c-time::after{content:" ⟳";color:var(--warn)}
 .g-readout .vals{display:flex;flex-wrap:wrap;gap:2px 12px;font-size:13px;margin-top:3px}
 .g-readout .vals span{white-space:nowrap}
 .g-readout i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
-.g-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,440px),1fr));gap:10px}
+.g-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,560px),1fr));gap:12px}
 .g-panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 4px 4px 10px;min-width:0}
 .g-ptitle{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding-right:8px}
 .g-ptitle h3{margin:0;font:700 17px/1.1 var(--display)}
@@ -118,8 +118,9 @@ tr.pending td.c-time::after{content:" ⟳";color:var(--warn)}
 .g-legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:13px;margin:4px 0 2px}
 .g-legend i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:3px;margin-right:5px}
 .g-panel svg{display:block;width:100%;height:auto;touch-action:pan-y;overflow:visible}
-.g-panel svg text{font-family:var(--body);font-size:11px;fill:var(--muted)}
-.g-panel svg .lbl{font-size:11.5px;font-weight:600;fill:var(--ink)}
+.g-panel svg text{font-family:var(--body);font-size:12.5px;fill:var(--muted)}
+.g-panel svg .lbl{font-size:13px;font-weight:600;fill:var(--ink)}
+.g-ptitle h3{font-size:20px!important}
 .g-none{padding:14px 4px;color:var(--muted)}
 /* view tabs */
 .vtabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:0 0 12px}
@@ -357,7 +358,7 @@ const G_PANELS = [
   { title: "Nate", unit: "", lane: true, series: [{ k: "nate", name: "Nate", c: "--s6" }] },
 ];
 let gLane = "all", gBuilt = [], gEvents = [], gX0 = 0, gX1 = 1;
-const G = { W: 360, L: 40, R: 58, T: 8, B: 20, H: 160 };
+const G = { W: 360, L: 46, R: 64, T: 10, B: 24, H: 280 };
 const gMin = t => { const [h, m] = (t || "0:0").split(":").map(Number); return h * 60 + m; };
 const gNum = v => { if (v === "" || v == null) return null; const n = Number(v); return isFinite(n) ? n : null; };
 const gx = m => G.L + (m - gX0) / (gX1 - gX0) * (G.W - G.L - G.R);
@@ -383,7 +384,7 @@ function buildGraphs() {
     host.appendChild(div);
     if (!vals.length) { const n = document.createElement("div"); n.className = "g-none"; n.textContent = "No readings yet."; div.appendChild(n); continue; }
     let lo = Math.min(...vals), hi = Math.max(...vals); const pad = (hi - lo) * .08 || 1;
-    const ticks = gTicks(lo >= 0 && lo - pad < 0 ? 0 : lo - pad, hi + pad).filter(t => !(lo >= 0 && t < 0)); lo = ticks[0]; hi = ticks[ticks.length - 1];
+    const ticks = gTicks(lo >= 0 && lo - pad < 0 ? 0 : lo - pad, hi + pad, 5).filter(t => !(lo >= 0 && t < 0)); lo = ticks[0]; hi = ticks[ticks.length - 1];
     G.W = Math.max(300, Math.round(div.clientWidth - 14));
     const ys = v => G.T + (1 - (v - lo) / (hi - lo || 1)) * (G.H - G.T - G.B);
     const svg = gel("svg", { viewBox: `0 0 ${G.W} ${G.H}`, role: "img", "aria-label": `${p.title} through the day` }); div.appendChild(svg);
