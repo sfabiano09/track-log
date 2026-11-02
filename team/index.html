@@ -131,9 +131,16 @@ tr.pending td.c-time::after{content:" ⟳";color:var(--warn)}
 @media (min-width:1100px){
   .logwrap{max-width:none}
   .logsplit{display:grid;grid-template-columns:minmax(0,46fr) minmax(0,54fr);gap:20px;align-items:start}
-  .lcol{position:sticky;top:10px;max-height:calc(100vh - 20px);overflow-y:auto;border-radius:14px;container-type:inline-size;scrollbar-width:thin}
+  .lcol{border-radius:14px;container-type:inline-size;scrollbar-width:thin}
   .lcol .tlv-lines{grid-template-columns:repeat(6,minmax(0,1fr))}
+  .lcol .tlv-stat .when,.lcol .tlv-stat .d{white-space:normal}
   .rcol .logctl{margin-top:0}
+  /* the page itself doesn't scroll: headings and Right now stay put, the log scrolls on its own */
+  body.split{overflow:hidden}
+  body.split .logsplit{height:calc(100vh - var(--splitTop, 200px) - 12px)}
+  body.split .lcol,body.split .rcol{height:100%;overflow-y:auto;overscroll-behavior:contain}
+  body.split .rcol{padding-right:6px}
+  body.split .rcol .logctl{position:sticky;top:0;z-index:2;background:var(--bg);padding:0 0 8px;margin:0}
 }
 @container (max-width:760px){ .tlv-simlist{grid-template-columns:1fr} }
 .logctl{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:12px 0 8px}
@@ -239,7 +246,7 @@ const cellValue = (e, k) => k === "time" ? time12(e.time) : k === "car" ? (e.typ
 let role = null, events = [], entries = [], curEvent = null, curDate = null, unsubEvents = null, unsubEntries = null, seen = new Set(), firstLoad = true;
 watchRole(r => {
   role = r;
-  $("login").hidden = !!r; $("app").hidden = !r;
+  $("login").hidden = !!r; $("app").hidden = !r; fitSplit();
   $("importBtn").hidden = r !== "edit";
   if (r) { $("who").textContent = r === "edit" ? "Signed in · Editor" : "Signed in · Viewer"; startEvents();
     if (!unsubHistory) unsubHistory = watchHistory(list => { runHistory = list; if (view === "log") renderLog(); }, err => console.error(err)); }
@@ -309,13 +316,26 @@ function renderLog() {
   const today = curDate === todayISO(), d = new Date();
   $("rightNow").innerHTML = ev ? TLV.rightNow(rows, { now: d.getHours() * 60 + d.getMinutes(), today, history: runHistory, track: ev.track, date: curDate }) : "";
   $("logList").innerHTML = ev ? TLV.log(rows, { lane: logLane, newestFirst }) : `<div class="tlv-empty">Readings saved in Track Log Live show up here as soon as they're entered.</div>`;
+  fitSplit();
 }
 function showView(v) {
   view = v; try { localStorage.setItem("ti.view", v); } catch (_) {}
   document.querySelectorAll(".vtab").forEach(t => t.setAttribute("aria-selected", t.dataset.view === v ? "true" : "false"));
   $("vLog").hidden = v !== "log"; $("vSheet").hidden = v !== "sheet"; $("vGraphs").hidden = v !== "graphs";
   if (v === "graphs") buildGraphs();
+  fitSplit();
 }
+// wide screens, Log tab: fit the two columns to the window so only the log scrolls
+const WIDE = matchMedia("(min-width:1100px)");
+function fitSplit() {
+  const on = view === "log" && WIDE.matches && !$("app").hidden;
+  document.body.classList.toggle("split", on);
+  if (!on) return;
+  window.scrollTo(0, 0);
+  const top = document.querySelector(".logsplit").getBoundingClientRect().top;
+  document.documentElement.style.setProperty("--splitTop", Math.round(top) + "px");
+}
+window.addEventListener("resize", fitSplit);
 document.querySelector(".vtabs").addEventListener("click", e => { const t = e.target.closest("[data-view]"); if (t) showView(t.dataset.view); });
 document.querySelector(".logctl").addEventListener("click", e => {
   const b = e.target.closest("[data-llane]");
