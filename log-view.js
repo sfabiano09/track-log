@@ -169,6 +169,8 @@
       a("Air", "air", "°"); a("Solar", "solar"); a("UV", "uv"); a("CC", "cc", "%"); return p.join(" · "); };
     // track temp, big so it reads at a glance
     const temp = e => has(e.track) ? `<span class="tlv-temp"><b>${esc(e.track)}°</b><i>Track</i></span>` : "";
+    // the lane, big, under the time
+    const bigLane = e => has(e.lane) ? `<span class="tlv-biglane ${esc(e.lane)}">${esc(e.lane)}</span>` : "";
     const strip = e => {
       if (!STATIONS.some(([k]) => has(e[k]))) return "";
       return `<div class="tlv-strip">${STATIONS.map(([k, lab]) => {
@@ -192,11 +194,11 @@
       if (e.type === "work") return `<div class="tlv-work ${String(e.work || "").toLowerCase()}"><span class="wt">${short(e.m)}</span><span class="wl">${esc(e.work)}</span><span class="wn">${esc(e.notes || "")}</span></div>`;
       if (e.type === "weather") return `<div class="tlv-e weather${pend}"><div><span class="t">${short(e.m)}</span></div><div class="body"><div class="head">Weather ${temp(e)}<span class="meta">${wx(e)}</span></div>${e.notes ? `<div class="note">${esc(e.notes)}</div>` : ""}</div></div>`;
       if (e.type === "run") { const n = plainNotes(e);
-        return `<div class="tlv-e run${pend}"><div><span class="t">${short(e.m)}</span><span class="ty">Run</span></div><div class="body">
-          <div class="head">${has(e.run) ? `<span class="tlv-tag">${esc(e.run)}</span>` : ""}<span class="tlv-car ${carCls(e.car)}">${esc(e.car)}</span>${e.lane ? `<span class="tlv-lane ${esc(e.lane)}">${esc(e.lane)}</span>` : ""}${temp(e)}<span class="tlv-result">${esc(result(e))}</span></div>
+        return `<div class="tlv-e run${pend}"><div><span class="t">${short(e.m)}</span><span class="ty">Run</span>${bigLane(e)}</div><div class="body">
+          <div class="head">${has(e.run) ? `<span class="tlv-tag">${esc(e.run)}</span>` : ""}<span class="tlv-car ${carCls(e.car)}">${esc(e.car)}</span>${temp(e)}<span class="tlv-result">${esc(result(e))}</span></div>
           <div class="meta">${wx(e)}</div>${strip(e)}${extras(e)}${n ? `<div class="note">${esc(n)}</div>` : ""}</div></div>`; }
-      return `<div class="tlv-e${pend}"><div><span class="t">${short(e.m)}</span><span class="ty">Track</span></div><div class="body">
-        <div class="head">${e.lane ? `<span class="tlv-lane ${esc(e.lane)}">${esc(e.lane)}</span>` : ""}${temp(e)}<span class="meta">${wx(e)}</span></div>
+      return `<div class="tlv-e${pend}"><div><span class="t">${short(e.m)}</span><span class="ty">Track</span>${bigLane(e)}</div><div class="body">
+        <div class="head">${temp(e)}<span class="meta">${wx(e)}</span></div>
         ${strip(e)}${extras(e)}${e.notes ? `<div class="note">${esc(e.notes)}</div>` : ""}</div></div>`;
     }).join("")}</div>`;
   }
