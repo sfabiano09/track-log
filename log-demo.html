@@ -56,6 +56,8 @@ h1{margin:0;font:700 28px/1 var(--display)}
 .nl .ago{font:700 13px/1 var(--display);letter-spacing:.06em;text-transform:uppercase;color:var(--note)}
 .nl .ago.old{color:#C9CED3}
 .nl .sub{font-size:13px;color:#C9CED3;overflow-wrap:anywhere}
+.nl.spray{box-shadow:inset 4px 0 0 #FFFF99} .nl.scrape{box-shadow:inset 4px 0 0 #F6C6AD}
+.nl.lastrun{grid-column:1/-1}
 .nl .runnums{margin-top:5px;font-size:13.5px;line-height:1.45}
 .nl .runnums b{color:#fff;font-weight:600}
 
@@ -119,7 +121,7 @@ h1{margin:0;font:700 28px/1 var(--display)}
 .empty-log{padding:24px;text-align:center;color:var(--muted)}
 @media (max-width:560px){
   .now-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
-  .now-lines{grid-template-columns:1fr}
+  .now-lines{grid-template-columns:1fr 1fr}
   .stat .v{font-size:26px}
 }
 </style>
@@ -199,12 +201,13 @@ function renderNow(rows){
     return `<div class="stat"><div class="k">${label}</div><div class="v">${v.toLocaleString(undefined,{maximumFractionDigits:dec})}${unit}</div>${d}<div class="when ${age>60?"stale":""}">${short(cur.m)} · ${age<1?"now":age<60?age+"m ago":Math.floor(age/60)+"h "+(age%60)+"m ago"}</div></div>`;
   };
   $("nowStats").innerHTML=st("track","Track","°")+st("air","Air","°")+st("solar","Solar","")+st("uv","UV","",1)+st("cc","Cloud","%");
-  const prep=lastBefore(rows,e=>e.type==="work",now);
+  const prepBox=(w,cls)=>{const e=lastBefore(rows,x=>x.type==="work"&&x.work===w,now);
+    return e?`<div class="nl ${cls}"><div class="label">Last ${w.toLowerCase()}</div><div class="what">${esc(e.notes||w)}</div><div class="ago ${now-e.m>60?"old":""}">${ago(now-e.m)} · ${fmt(e.m)}</div></div>`
+      :`<div class="nl ${cls}"><div class="label">Last ${w.toLowerCase()}</div><div class="what">None yet today</div></div>`};
+  const prepHtml=prepBox("Spray","spray")+prepBox("Scrape","scrape");
   const run=lastBefore(rows,e=>e.type==="run",now);
-  const prepHtml=prep?`<div class="nl"><div class="label">Last track prep</div><div class="what">${esc(prep.work)}${prep.notes?" · "+esc(prep.notes):""}</div><div class="ago ${now-prep.m>60?"old":""}">${ago(now-prep.m)} · ${fmt(prep.m)}</div></div>`
-    :`<div class="nl"><div class="label">Last track prep</div><div class="what">None yet today</div></div>`;
-  const runHtml=run?`<div class="nl"><div class="label">Last run</div><div class="what">${esc(run.run||"")} · ${esc(run.car)} · ${esc(run.lane||"")} lane${run.notes?` · ${esc(run.notes.split("/").pop().trim())}`:""}</div><div class="ago ${now-run.m>60?"old":""}">${ago(now-run.m)} · ${fmt(run.m)}</div>${runNumbers(run)}</div>`
-    :`<div class="nl"><div class="label">Last run</div><div class="what">None yet today</div></div>`;
+  const runHtml=run?`<div class="nl lastrun"><div class="label">Last run</div><div class="what">${esc(run.run||"")} · ${esc(run.car)} · ${esc(run.lane||"")} lane${run.notes?` · ${esc(run.notes.split("/").pop().trim())}`:""}</div><div class="ago ${now-run.m>60?"old":""}">${ago(now-run.m)} · ${fmt(run.m)}</div>${runNumbers(run)}</div>`
+    :`<div class="nl lastrun"><div class="label">Last run</div><div class="what">None yet today</div></div>`;
   $("nowLines").innerHTML=prepHtml+runHtml;
 }
 function strip(e,rows){
