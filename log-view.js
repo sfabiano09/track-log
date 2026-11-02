@@ -87,6 +87,11 @@
   }
 
   const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"], MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  // the team's short names for tracks, as on the run sheet ("LAS Q2")
+  const CODES = { "Gainesville": "GAI", "Phoenix": "PHX", "Pomona": "POM", "Charlotte": "CON", "Valdosta": "GEO", "Joliet": "CHI", "Budds Creek": "MAR",
+    "Epping": "EPP", "Bristol": "BRI", "Norwalk": "NOR", "Sonoma": "SON", "Seattle": "SEA", "Brainerd": "BRA", "Indy": "IND", "Martin": "MIC",
+    "Rockingham": "ROC", "St. Louis": "STL", "Dallas": "DAL", "Las Vegas": "LAS" };
+  const code = t => CODES[t] || String(t || "").replace(/[^A-Za-z]/g, "").slice(0, 3).toUpperCase();
   const prettyDay = iso => { const d = new Date(iso + "T12:00:00Z"); return `${DAYS[d.getUTCDay()]} ${MON[d.getUTCMonth()]} ${d.getUTCDate()}`; };
   function similarHtml(history, q, opts) {
     const { list, reason } = similar(history, q, opts);
@@ -104,8 +109,9 @@
         cmp("SL Stk", "slSticky", r), cmp("Stk", "sticky", r), cmp("P", "push", r, "", 1), cmp("Nate", "nate", r, "", 1), cmp("UV", "uv", r, "", 1), cmp("Air", "air", r, "°")].filter(Boolean);
       const note = plainNotes(r);
       return `<div class="tlv-simrun${sameTrack ? "" : " other"}">
-        <div class="simtop"><span class="simpct">${match}%</span><span class="simwho">${esc(sameTrack ? "" : r.event + " · ")}${esc(prettyDay(r.date))}${has(r.time) ? " · " + short(toMin(r.time)) : ""}</span></div>
-        <div class="what">${[r.run, r.lane && r.lane + " lane", res].filter(has).map(esc).join(" · ")}</div>
+        <div class="simtop"><span class="simpct">${match}%</span><span class="simrace">${esc([code(r.event), r.run].filter(has).join(" "))}</span></div>
+        <div class="simwho">${esc(r.event)} · ${esc(prettyDay(r.date))}${has(r.time) ? " · " + short(toMin(r.time)) : ""}</div>
+        <div class="what">${[r.lane && r.lane + " lane", res].filter(has).map(esc).join(" · ")}</div>
         ${splits.length ? `<div class="simsplits">${splits.join(" · ")}</div>` : ""}
         ${sameTrack ? "" : `<div class="simflag">Other track</div>`}
         <div class="runnums simnums">${nums.join(" · ")}</div>

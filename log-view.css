@@ -44,7 +44,8 @@
 .tlv-simrun.other{box-shadow:inset 4px 0 0 #8A9197}
 .tlv-simrun .simtop{display:flex;align-items:baseline;gap:8px}
 .tlv-simrun .simpct{font:700 22px/1 var(--tlv-display);color:var(--tlv-note)}
-.tlv-simrun .simwho{font:700 14px/1.2 var(--tlv-display);letter-spacing:.04em;text-transform:uppercase;color:#C9CED3;overflow-wrap:anywhere}
+.tlv-simrun .simrace{font:700 22px/1 var(--tlv-display);letter-spacing:.02em}
+.tlv-simrun .simwho{margin-top:4px;font:700 13px/1.2 var(--tlv-display);letter-spacing:.04em;text-transform:uppercase;color:#C9CED3;overflow-wrap:anywhere}
 .tlv-simrun .what{font:700 18px/1.15 var(--tlv-display);margin-top:3px;overflow-wrap:anywhere}
 .tlv-simrun .simsplits{font-size:13px;color:#C9CED3;margin-top:2px}
 .tlv-simrun .simsplits b{color:#fff;font-weight:600}
