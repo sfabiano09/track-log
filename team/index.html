@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Track Info</title>
+<meta name="color-scheme" content="light only">
+<meta name="theme-color" content="#EEF0F2">
+<meta name="robots" content="noindex">
+<link rel="apple-touch-icon" href="../icon-180.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Layout: a toolbar (race, day, live status), then the day sheet styled after the team's Excel tabs, then the graphs. */
+:root{
+  --bg:#EEF0F2; --surface:#FFFFFF; --ink:#0B0D0F; --muted:#3E454C; --line:#AEB6BD; --grid:#E3E6E9; --axis:#9AA2A9;
+  --note:#FFD43B; --note-ink:#1A1C1E; --good:#1E7F4E; --warn:#B4500A; --bad:#B42318;
+  /* sheet colors, matched to the Excel day tabs */
+  --wx-h:#BFBFBF; --wx:#E9E9E9; --sl-h:#F4B4B4; --sl:#FCE1E1; --t10-h:#D0CECE; --t10:#EDEDED;
+  --tk-h:#D9D9D9; --tk:#F4F4F4; --bl-h:#9DC3E6; --bl:#DDEBF7; --nate:#BDD7EE; --hdr-blue:#2F75B5; --hdr-red:#E00000;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#008300; --s7:#6250d6; --s8:#e34948;
+  --display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.4 var(--body);font-variant-numeric:tabular-nums;
+  padding:env(safe-area-inset-top,0) max(16px,env(safe-area-inset-right,0)) calc(32px + env(safe-area-inset-bottom,0)) max(16px,env(safe-area-inset-left,0))}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--note);outline-offset:2px}
+[hidden]{display:none!important}
+.label{font:600 12px/1 var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.wrap{max-width:1500px;margin:0 auto}
+
+/* login */
+.login{min-height:80vh;display:grid;place-items:center}
+.login form{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:24px;width:min(380px,100%);display:flex;flex-direction:column;gap:12px}
+.login h1{margin:0;font:700 34px/1 var(--display)}
+.login p{margin:0;color:var(--muted)}
+.login input{min-height:52px;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:18px;background:#fff}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:10px 16px;font:700 16px/1 var(--display);letter-spacing:.05em;text-transform:uppercase;min-height:44px}
+.btn.primary{background:var(--ink);color:#fff;border-color:var(--ink)}
+.err{color:var(--bad);min-height:20px;font-size:14px}
+
+/* toolbar */
+.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-block:14px 8px}
+.top h1{margin:0;font:700 30px/1 var(--display);flex:1;min-width:0;white-space:nowrap}
+.live{display:inline-flex;align-items:center;gap:6px;font:600 13px/1 var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.live i{width:9px;height:9px;border-radius:50%;background:var(--axis)}
+.live.on i{background:#1E9E55;box-shadow:0 0 0 3px rgba(30,158,85,.18)}
+.who{font-size:13px;color:var(--muted)}
+.bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.bar select{min-height:44px;border:1px solid var(--line);border-radius:10px;background:#fff;padding:6px 10px;font:700 17px/1 var(--display);min-width:0;max-width:100%}
+.days{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:9px 14px;font:700 15px/1 var(--display);letter-spacing:.04em;min-height:40px}
+.chip[aria-pressed="true"]{background:var(--note);border-color:var(--note);color:var(--note-ink)}
+.spacer{flex:1}
+
+/* the day sheet */
+.sheet-card{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:16px}
+.sheet-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid var(--line)}
+.sheet-head h2{margin:0;font:700 26px/1 var(--display)}
+.sheet-head .d{font:600 20px/1 var(--display);color:var(--muted)}
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{border-collapse:collapse;width:100%;min-width:1100px;font-size:13.5px}
+th,td{border:1px solid #8E969D;padding:4px 5px;text-align:center;white-space:nowrap}
+thead th{font:700 14px/1.15 var(--display);letter-spacing:.02em;position:sticky;top:0}
+thead tr.g th{font-size:15px}
+td.notes{text-align:left;white-space:normal;min-width:170px;max-width:340px}
+th.c-time,td.c-time{position:sticky;left:0;z-index:1;background:#fff;box-shadow:1px 0 0 #8E969D}
+thead th.c-time{z-index:2}
+.g-info{background:#fff}
+.g-wx{background:var(--wx)} th.g-wx{background:var(--wx-h)}
+.g-sl{background:var(--sl)} th.g-sl{background:var(--sl-h)}
+.g-t10{background:var(--t10)} th.g-t10{background:var(--t10-h)}
+.g-tk{background:var(--tk)} th.g-tk{background:var(--tk-h)}
+.g-bl{background:var(--bl)} th.g-bl{background:var(--bl-h)}
+td.k-nate{background:var(--nate)}
+.g-stk,.g-notes{background:#fff}
+th.h-blue{color:var(--hdr-blue)} th.h-red{color:var(--hdr-red)}
+/* the sheet's conditional formatting */
+td.car-austin{background:#0032FF;color:#D9D9D9}
+td.car-pm{background:#92D050}
+td.car-matt{background:#CDEBF8}
+td.car-scrape{background:#F6C6AD}
+td.car-spray{background:#FFFF99}
+td.car-prep{background:#FFC000}
+td.car-delay{color:#E00000}
+td.lane-r{color:#E00000;font-weight:700}
+td.lane-l{font-weight:700}
+tr.run td.c-time{font-weight:700}
+tr.fresh td{animation:fresh 4s ease-out}
+@keyframes fresh{0%{box-shadow:inset 0 0 0 999px rgba(255,212,59,.55)}100%{box-shadow:inset 0 0 0 999px rgba(255,212,59,0)}}
+tr.pending td.c-time::after{content:" ⟳";color:var(--warn)}
+.empty{padding:28px 14px;color:var(--muted);text-align:center}
+.empty strong{display:block;color:var(--ink);font:700 20px/1.2 var(--display);margin-bottom:4px}
+
+/* graphs */
+.g-title{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:6px 0 8px}
+.g-title h2{margin:0;font:700 24px/1 var(--display)}
+.g-key{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+.g-key b{color:var(--ink)}
+.g-sw{display:inline-block;width:0;height:14px;border-left:2px solid var(--ink);margin-right:6px;vertical-align:-2px}
+.g-sw.dash{border-left-style:dashed;opacity:.7}
+.g-readout{position:sticky;top:env(safe-area-inset-top,0);z-index:3;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:10px;min-height:54px}
+.g-readout .t{font:700 17px/1.1 var(--display)}
+.g-readout .vals{display:flex;flex-wrap:wrap;gap:2px 12px;font-size:13px;margin-top:3px}
+.g-readout .vals span{white-space:nowrap}
+.g-readout i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
+.g-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,440px),1fr));gap:10px}
+.g-panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 4px 4px 10px;min-width:0}
+.g-ptitle{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding-right:8px}
+.g-ptitle h3{margin:0;font:700 17px/1.1 var(--display)}
+.g-ptitle .u{color:var(--muted);font-size:12px}
+.g-legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:13px;margin:4px 0 2px}
+.g-legend i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:3px;margin-right:5px}
+.g-panel svg{display:block;width:100%;height:auto;touch-action:pan-y;overflow:visible}
+.g-panel svg text{font-family:var(--body);font-size:11px;fill:var(--muted)}
+.g-panel svg .lbl{font-size:11.5px;font-weight:600;fill:var(--ink)}
+.g-none{padding:14px 4px;color:var(--muted)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0));transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 18px;border-radius:999px;font-weight:600;z-index:50;max-width:calc(100% - 32px);text-align:center}
+@media (prefers-reduced-motion:reduce){tr.fresh td{animation:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<section class="login" id="login" hidden>
+  <form id="loginForm">
+    <h1>Track Info</h1>
+    <p>Tasca Racing track readings, live from the starting line.</p>
+    <label class="label" for="pw">Team password</label>
+    <input id="pw" type="password" autocomplete="current-password" required>
+    <div class="err" id="loginErr" aria-live="polite"></div>
+    <button class="btn primary" type="submit" id="loginBtn">Sign in</button>
+  </form>
+</section>
+
+<main id="app" hidden>
+  <div class="top">
+    <h1>Track Info</h1>
+    <span class="live" id="live"><i></i><span id="liveTxt">Connecting</span></span>
+    <span class="who" id="who"></span>
+    <button class="btn" type="button" id="signOut">Sign out</button>
+  </div>
+  <div class="bar">
+    <label class="label" for="race">Race</label>
+    <select id="race" aria-label="Race"></select>
+    <div class="days" id="days" role="group" aria-label="Day"></div>
+    <span class="spacer"></span>
+    <button class="btn" type="button" id="dl">Download Excel</button>
+  </div>
+
+  <section class="sheet-card" aria-labelledby="sheetTitle">
+    <div class="sheet-head"><h2 id="sheetTitle">—</h2><span class="d" id="sheetDay"></span><span class="who" id="count"></span></div>
+    <div class="scroll" id="sheet"></div>
+  </section>
+
+  <section aria-labelledby="gH">
+    <div class="g-title">
+      <h2 id="gH">Graphs</h2>
+      <div class="days" role="group" aria-label="Lane" id="lanes">
+        <button class="chip" data-glane="all" aria-pressed="true">Both lanes</button>
+        <button class="chip" data-glane="L" aria-pressed="false">Left</button>
+        <button class="chip" data-glane="R" aria-pressed="false">Right</button>
+      </div>
+      <div class="g-key"><span><span class="g-sw"></span><b>Scrape</b></span><span><span class="g-sw dash"></span><b>Spray</b></span></div>
+    </div>
+    <div class="g-readout" id="gReadout" aria-live="polite"><div class="who">Touch or hover over a chart to see the readings at that time.</div></div>
+    <div class="g-grid" id="gPanels"></div>
+  </section>
+</main>
+</div>
+<div class="toast" id="toast" hidden role="status"></div>
+
+<script type="module">
+import { login, logout, watchRole, watchEvents, watchEntries } from "../fb.js";
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const has = v => v !== undefined && v !== null && String(v).trim() !== "";
+let tt; const toast = m => { const t = $("toast"); t.textContent = m; t.hidden = false; clearTimeout(tt); tt = setTimeout(() => t.hidden = true, 2800); };
+const DAYS = ["SUN","MON","TUE","WED","THURS","FRI","SAT"];
+const dayLabel = iso => DAYS[new Date(iso + "T12:00:00").getDay()];
+const prettyDate = iso => new Date(iso + "T12:00:00").toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+const time12 = hm => { if (!hm) return ""; let [h, m] = hm.split(":").map(Number); const ap = h >= 12 ? "PM" : "AM"; h = h % 12 || 12; return `${h}:${String(m).padStart(2, "0")} ${ap}`; };
+const notesText = e => [has(e.notes) ? e.notes.trim() : "", (has(e.et) || has(e.mph)) ? [e.et, has(e.mph) ? e.mph + "mph" : ""].filter(has).join(", ") : ""].filter(Boolean).join(" / ");
+const cellValue = (e, k) => k === "time" ? time12(e.time) : k === "car" ? (e.type === "work" ? e.work : e.car)
+  : k === "notes" ? notesText(e) : k === "slStk" ? (has(e.slSticky) ? e.slSticky : e.slGrade) : e[k];
+
+/* ---------- sign-in ---------- */
+let role = null, events = [], entries = [], curEvent = null, curDate = null, unsubEvents = null, unsubEntries = null, seen = new Set(), firstLoad = true;
+watchRole(r => {
+  role = r;
+  $("login").hidden = !!r; $("app").hidden = !r;
+  if (r) { $("who").textContent = r === "edit" ? "Signed in · Editor" : "Signed in · Viewer"; startEvents(); }
+  else { unsubEvents && unsubEvents(); unsubEntries && unsubEntries(); unsubEvents = unsubEntries = null; }
+});
+$("loginForm").addEventListener("submit", async ev => {
+  ev.preventDefault(); $("loginErr").textContent = ""; $("loginBtn").disabled = true;
+  try { await login($("pw").value); $("pw").value = ""; }
+  catch (e) { $("loginErr").textContent = e.code === "bad-password" ? "That password didn't match. Check it and try again." : "Couldn't reach the server. Check your connection and try again."; }
+  $("loginBtn").disabled = false;
+});
+$("signOut").onclick = () => logout();
+
+/* ---------- races and days ---------- */
+function startEvents() {
+  if (unsubEvents) return;
+  unsubEvents = watchEvents((list, meta) => {
+    events = list;
+    setLive(!meta.fromCache);
+    const wanted = (location.hash.slice(1) || "").split(".")[0];
+    if (!curEvent || !events.some(e => e.id === curEvent)) curEvent = (events.find(e => e.id === wanted) || events[0] || {}).id || null;
+    renderRaces(); openEvent(curEvent);
+  }, err => { setLive(false, "Can't load races"); console.error(err); });
+}
+function setLive(on, txt) { $("live").classList.toggle("on", on); $("liveTxt").textContent = txt || (on ? "Live" : "Offline"); }
+function renderRaces() {
+  $("race").innerHTML = events.length ? events.map(e => `<option value="${esc(e.id)}"${e.id === curEvent ? " selected" : ""}>${esc(e.label || e.id)}</option>`).join("")
+    : `<option>No races yet</option>`;
+  $("race").disabled = !events.length;
+}
+$("race").onchange = () => { curEvent = $("race").value; curDate = null; openEvent(curEvent); };
+function openEvent(id) {
+  if (openEvent.id === id) { renderAll(); return; }
+  openEvent.id = id; unsubEntries && unsubEntries(); unsubEntries = null; entries = []; seen = new Set(); firstLoad = true;
+  if (!id) { renderAll(); return; }
+  unsubEntries = watchEntries(id, (list, meta) => {
+    const fresh = firstLoad ? new Set() : new Set(list.filter(e => !seen.has(e.id)).map(e => e.id));
+    list.forEach(e => seen.add(e.id)); firstLoad = false;
+    entries = list; renderAll(fresh);
+    setLive(!meta.fromCache);
+  }, err => { setLive(false, "Can't load readings"); console.error(err); });
+}
+function eventDates() {
+  const ev = events.find(e => e.id === curEvent) || {};
+  return [...new Set([...(ev.dates || []), ...entries.map(e => e.date)])].filter(Boolean).sort();
+}
+function renderAll(fresh = new Set()) {
+  const dates = eventDates();
+  if (!curDate || !dates.includes(curDate)) {
+    const want = (location.hash.slice(1) || "").split(".")[1];
+    curDate = dates.includes(want) ? want : dates[dates.length - 1] || null;
+  }
+  $("days").innerHTML = dates.map(d => `<button class="chip" data-date="${d}" aria-pressed="${d === curDate}">${dayLabel(d)} ${+d.slice(8)}</button>`).join("");
+  renderSheet(fresh); buildGraphs();
+  if (curEvent) history.replaceState(null, "", "#" + curEvent + (curDate ? "." + curDate : ""));
+}
+$("days").onclick = e => { const b = e.target.closest("[data-date]"); if (b) { curDate = b.dataset.date; renderAll(); } };
+const dayEntries = () => entries.filter(e => e.date === curDate).sort((a, b) => (a.time || "").localeCompare(b.time || ""));
+
+/* ---------- the day sheet (same columns as the Excel day tabs) ---------- */
+const COLS = [
+  { k: "time", h: "Time", g: "info", cls: "c-time" }, { k: "run", h: "Run", g: "info" }, { k: "lane", h: "Lane", g: "info" }, { k: "car", h: "Car", g: "info" },
+  { k: "uv", h: "UV", g: "wx", hc: "h-blue" }, { k: "solar", h: "Solar", g: "wx", hc: "h-blue" }, { k: "cc", h: "CC", g: "wx", hc: "h-blue" }, { k: "air", h: "Air", g: "wx" }, { k: "track", h: "TRACK", g: "wx", hc: "h-red" },
+  { k: "slLoc", h: "Location", g: "sl" }, { k: "slKeg", h: "KEG", g: "sl" }, { k: "slStk", h: "Sticky", g: "sl" },
+  { k: "k10", h: "KEG", g: "t10" }, { k: "push", h: "Push", g: "t10" },
+  { k: "k60", h: "KEG", g: "tk" }, { k: "k80", h: "KEG", g: "tk" },
+  { k: "k125", h: "KEG", g: "bl" }, { k: "g125", h: "Etc.", g: "bl" },
+  { k: "sticky", h: null, g: "stk" },
+  { k: "k330", h: "KEG", g: "bl" }, { k: "g330", h: "Etc.", g: "bl" }, { k: "nate", h: "Nate", g: "bl", cls: "k-nate" },
+  { k: "notes", h: null, g: "notes", cls: "notes" },
+];
+const GROUPS = [["Car/ Event INFO", "info", 4], ["Weather", "wx", 5], ["Starting Line", "sl", 3], ["10ft", "t10", 2], ["60ft", "tk", 1], ["80ft", "tk", 1],
+  ["125ft", "bl", 2], ["Sticky", "stk", 1, true], ["330ft", "bl", 3], ["Notes", "notes", 1, true]];
+function carClass(v) { const s = String(v || "").toLowerCase();
+  return s.includes("austin") ? "car-austin" : /\bpm\b/.test(s) ? "car-pm" : s.includes("matt") ? "car-matt" : s.includes("scrape") ? "car-scrape"
+    : s.includes("spray") ? "car-spray" : s.includes("prep") ? "car-prep" : s.includes("delay") ? "car-delay" : ""; }
+function renderSheet(fresh) {
+  const ev = events.find(e => e.id === curEvent);
+  $("sheetTitle").textContent = ev ? ev.track : "No races yet";
+  $("sheetDay").textContent = curDate ? prettyDate(curDate) : "";
+  const rows = curDate ? dayEntries() : [];
+  $("count").textContent = rows.length ? `${rows.length} row${rows.length > 1 ? "s" : ""}` : "";
+  if (!ev) { $("sheet").innerHTML = `<div class="empty"><strong>No readings yet</strong>Readings saved in Track Log Live show up here as soon as they're entered.</div>`; return; }
+  const gRow = GROUPS.map(([t, g, n, span2], i) => `<th class="g-${g}${i === 0 ? "" : ""}" colspan="${n}"${span2 ? ' rowspan="2"' : ""}>${t}</th>`).join("");
+  const hRow = COLS.filter(c => c.h !== null).map(c => `<th class="g-${c.g} ${c.hc || ""} ${c.cls || ""}">${c.h}</th>`).join("");
+  const body = rows.map(e => `<tr class="${e.type === "run" ? "run" : ""} ${fresh.has(e.id) ? "fresh" : ""} ${e._pending ? "pending" : ""}">` +
+    COLS.map(c => { const v = cellValue(e, c.k);
+      const extra = c.k === "car" ? carClass(v) : c.k === "lane" ? (v === "R" ? "lane-r" : v === "L" ? "lane-l" : "") : "";
+      return `<td class="g-${c.g} ${c.cls || ""} ${extra}">${esc(has(v) ? v : "")}</td>`; }).join("") + `</tr>`).join("");
+  $("sheet").innerHTML = `<table><thead><tr class="g">${gRow}</tr><tr>${hRow}</tr></thead><tbody>${body ||
+    `<tr><td colspan="${COLS.length}" class="empty">No readings for this day yet.</td></tr>`}</tbody></table>`;
+  // the Time header spans the first group's first column; keep it sticky with the time cells
+  const firstTh = $("sheet").querySelector("thead tr:nth-child(2) th"); if (firstTh) firstTh.classList.add("c-time");
+}
+
+/* ---------- graphs (same as the phone app) ---------- */
+const G_PANELS = [
+  { title: "Temperature", unit: "°F", series: [{ k: "air", name: "Air", c: "--s1" }, { k: "track", name: "Track", c: "--s2" }] },
+  { title: "Solar", unit: "W/m²", series: [{ k: "solar", name: "Solar", c: "--s4" }] },
+  { title: "UV index", unit: "", series: [{ k: "uv", name: "UV", c: "--s7" }] },
+  { title: "KEG", unit: "", lane: true, series: [{ k: "slKeg", name: "SL", c: "--s1" }, { k: "k10", name: "10ft", c: "--s2" }, { k: "k60", name: "60ft", c: "--s3" },
+    { k: "k80", name: "80ft", c: "--s4" }, { k: "k125", name: "125ft", c: "--s5" }, { k: "k330", name: "330ft", c: "--s6" }] },
+  { title: "Sticky", unit: "", lane: true, series: [{ k: "slSticky", name: "SL Sticky", c: "--s1" }, { k: "sticky", name: "Sticky", c: "--s8" }] },
+  { title: "Push (10 ft)", unit: "", lane: true, series: [{ k: "push", name: "Push", c: "--s3" }] },
+  { title: "Nate", unit: "", lane: true, series: [{ k: "nate", name: "Nate", c: "--s6" }] },
+];
+let gLane = "all", gBuilt = [], gEvents = [], gX0 = 0, gX1 = 1;
+const G = { W: 360, L: 40, R: 58, T: 8, B: 20, H: 160 };
+const gMin = t => { const [h, m] = (t || "0:0").split(":").map(Number); return h * 60 + m; };
+const gNum = v => { if (v === "" || v == null) return null; const n = Number(v); return isFinite(n) ? n : null; };
+const gx = m => G.L + (m - gX0) / (gX1 - gX0) * (G.W - G.L - G.R);
+const gcss = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const SVGNS = "http://www.w3.org/2000/svg";
+function gel(n, a, p) { const x = document.createElementNS(SVGNS, n); for (const k in a) x.setAttribute(k, a[k]); if (p) p.appendChild(x); return x; }
+function gTicks(lo, hi, n = 3) { const span = hi - lo || 1, s0 = span / n, mag = 10 ** Math.floor(Math.log10(s0)), st = [1, 2, 2.5, 5, 10].map(s => s * mag).find(s => s >= s0);
+  const a = Math.floor(lo / st) * st, b = Math.ceil(hi / st) * st, t = []; for (let v = a; v <= b + 1e-9; v += st) t.push(+v.toFixed(6)); return t; }
+function gFmt(m) { let h = Math.floor(m / 60); const mm = String(Math.round(m % 60)).padStart(2, "0"), ap = h >= 12 ? "PM" : "AM"; h = h % 12 || 12; return `${h}:${mm} ${ap}`; }
+function buildGraphs() {
+  const day = curDate ? dayEntries() : [], host = $("gPanels"); host.innerHTML = ""; gBuilt = [];
+  $("gReadout").innerHTML = '<div class="who">Touch or hover over a chart to see the readings at that time.</div>';
+  if (!day.length) { host.innerHTML = '<div class="g-none">Graphs appear once the day has readings.</div>'; return; }
+  const mins = day.map(e => gMin(e.time)); gX0 = Math.floor(Math.min(...mins) / 60) * 60; gX1 = Math.max(gX0 + 60, Math.ceil(Math.max(...mins) / 60) * 60);
+  gEvents = day.filter(e => e.type === "work" && (e.work === "Scrape" || e.work === "Spray")).map(e => ({ m: gMin(e.time), w: e.work, notes: e.notes || "" }));
+  for (const p of G_PANELS) {
+    const series = p.series.map(s => ({ ...s, col: gcss(s.c), pts: day.filter(e => !p.lane || gLane === "all" || e.lane === gLane)
+      .map(e => ({ m: gMin(e.time), v: gNum(e[s.k]) })).filter(d => d.v != null) }));
+    const vals = series.flatMap(s => s.pts.map(d => d.v));
+    const div = document.createElement("section"); div.className = "g-panel";
+    div.innerHTML = `<div class="g-ptitle"><h3>${p.title}</h3><span class="u">${p.unit}${p.lane && gLane !== "all" ? (p.unit ? " · " : "") + (gLane === "L" ? "Left lane" : "Right lane") : ""}</span></div>` +
+      (series.length > 1 ? `<div class="g-legend">${series.map(s => `<span><i style="background:${s.col}"></i>${s.name}</span>`).join("")}</div>` : "");
+    host.appendChild(div);
+    if (!vals.length) { const n = document.createElement("div"); n.className = "g-none"; n.textContent = "No readings yet."; div.appendChild(n); continue; }
+    let lo = Math.min(...vals), hi = Math.max(...vals); const pad = (hi - lo) * .08 || 1;
+    const ticks = gTicks(lo >= 0 && lo - pad < 0 ? 0 : lo - pad, hi + pad).filter(t => !(lo >= 0 && t < 0)); lo = ticks[0]; hi = ticks[ticks.length - 1];
+    G.W = Math.max(300, Math.round(div.clientWidth - 14));
+    const ys = v => G.T + (1 - (v - lo) / (hi - lo || 1)) * (G.H - G.T - G.B);
+    const svg = gel("svg", { viewBox: `0 0 ${G.W} ${G.H}`, role: "img", "aria-label": `${p.title} through the day` }); div.appendChild(svg);
+    for (const t of ticks) { gel("line", { x1: G.L, x2: G.W - G.R, y1: ys(t), y2: ys(t), stroke: gcss("--grid") }, svg);
+      gel("text", { x: G.L - 6, y: ys(t) + 4, "text-anchor": "end" }, svg).textContent = t >= 1000 ? t.toLocaleString() : t; }
+    gel("line", { x1: G.L, x2: G.W - G.R, y1: G.H - G.B, y2: G.H - G.B, stroke: gcss("--axis") }, svg);
+    for (let m = gX0; m <= gX1; m += 60) { const hr = Math.floor(m / 60), h12 = hr % 12 || 12;
+      gel("line", { x1: gx(m), x2: gx(m), y1: G.H - G.B, y2: G.H - G.B + 3, stroke: gcss("--axis") }, svg);
+      gel("text", { x: gx(m), y: G.H - 5, "text-anchor": "middle" }, svg).textContent = (m === gX0 || m === gX1) ? h12 + (hr < 12 ? "am" : "pm") : String(h12); }
+    for (const ev of gEvents) gel("line", { x1: gx(ev.m), x2: gx(ev.m), y1: G.T, y2: G.H - G.B, stroke: "#0B0D0F", "stroke-opacity": ev.w === "Scrape" ? .55 : .4, "stroke-width": 1.5, "stroke-dasharray": ev.w === "Spray" ? "4 3" : "" }, svg);
+    const ends = [];
+    for (const s of series) { if (!s.pts.length) continue;
+      gel("path", { d: s.pts.map((d, i) => (i ? "L" : "M") + gx(d.m).toFixed(1) + " " + ys(d.v).toFixed(1)).join(""), fill: "none", stroke: s.col, "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, svg);
+      for (const d of s.pts) gel("circle", { cx: gx(d.m), cy: ys(d.v), r: 3, fill: s.col, stroke: "#fff", "stroke-width": 1.5 }, svg);
+      const last = s.pts[s.pts.length - 1]; ends.push({ s, y: ys(last.v) }); }
+    ends.sort((a, b) => a.y - b.y); for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 12) ends[i].y = ends[i - 1].y + 12;
+    const over = ends.length ? ends[ends.length - 1].y - (G.H - G.B) : 0; if (over > 0) ends.forEach(e => e.y -= over);
+    for (const e of ends) { gel("circle", { cx: G.W - G.R + 2, cy: e.y, r: 2.5, fill: e.s.col }, svg); gel("text", { x: G.W - G.R + 6, y: e.y + 4, class: "lbl" }, svg).textContent = e.s.name; }
+    const cross = gel("line", { x1: 0, x2: 0, y1: G.T, y2: G.H - G.B, stroke: "#0B0D0F", visibility: "hidden" }, svg);
+    const dots = series.map(s => gel("circle", { r: 5, fill: s.col, stroke: "#fff", "stroke-width": 2, visibility: "hidden" }, svg));
+    gBuilt.push({ series, ys, cross, dots, W: G.W });
+    const W = G.W;
+    const move = ev => { G.W = W; const r = svg.getBoundingClientRect(), x = (ev.clientX - r.left) / r.width * G.W, m = gX0 + (x - G.L) / (G.W - G.L - G.R) * (gX1 - gX0); gHover(Math.max(gX0, Math.min(gX1, m))); };
+    svg.addEventListener("pointermove", move); svg.addEventListener("pointerdown", move);
+  }
+}
+function gHover(m) {
+  const near = arr => { let b = null; for (const d of arr) { const g = Math.abs(d.m - m); if (g <= 25 && (!b || g < Math.abs(b.m - m))) b = d; } return b; };
+  const out = [];
+  for (const b of gBuilt) { G.W = b.W; b.cross.setAttribute("x1", gx(m)); b.cross.setAttribute("x2", gx(m)); b.cross.setAttribute("visibility", "visible");
+    b.series.forEach((s, i) => { const d = near(s.pts), dot = b.dots[i];
+      if (d) { dot.setAttribute("cx", gx(d.m)); dot.setAttribute("cy", b.ys(d.v)); dot.setAttribute("visibility", "visible"); out.push(`<span><i style="background:${s.col}"></i>${esc(s.name)} <b>${d.v.toLocaleString()}</b></span>`); }
+      else dot.setAttribute("visibility", "hidden"); }); }
+  const ev = gEvents.filter(e => Math.abs(e.m - m) <= 10).map(e => `<span><b>${e.w}</b> ${gFmt(e.m)}${e.notes ? " · " + esc(e.notes) : ""}</span>`);
+  $("gReadout").innerHTML = `<div class="t">${gFmt(m)}</div><div class="vals">${out.join("") || '<span class="who">No readings within 25 min</span>'}${ev.join("")}</div>`;
+}
+let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(buildGraphs, 200); });
+$("lanes").addEventListener("click", e => { const b = e.target.closest("[data-glane]"); if (!b) return; gLane = b.dataset.glane;
+  document.querySelectorAll("[data-glane]").forEach(c => c.setAttribute("aria-pressed", c === b ? "true" : "false")); buildGraphs(); });
+
+/* ---------- Excel download (a stored .xlsx built in the page, no library) ---------- */
+const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+const crc32 = b => { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = CRC[(c ^ b[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+function zipStore(files) {
+  const enc = new TextEncoder(), parts = [], central = []; let off = 0;
+  for (const [name, str] of files) {
+    const nb = enc.encode(name), db = enc.encode(str), crc = crc32(db);
+    const lh = new DataView(new ArrayBuffer(30)); lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true);
+    lh.setUint32(14, crc, true); lh.setUint32(18, db.length, true); lh.setUint32(22, db.length, true); lh.setUint16(26, nb.length, true);
+    parts.push(new Uint8Array(lh.buffer), nb, db);
+    const ch = new DataView(new ArrayBuffer(46)); ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true);
+    ch.setUint32(16, crc, true); ch.setUint32(20, db.length, true); ch.setUint32(24, db.length, true); ch.setUint16(28, nb.length, true); ch.setUint32(42, off, true);
+    central.push(new Uint8Array(ch.buffer), nb); off += 30 + nb.length + db.length;
+  }
+  const csize = central.reduce((s, p) => s + p.length, 0), end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true); end.setUint32(12, csize, true); end.setUint32(16, off, true);
+  return new Blob([...parts, ...central, new Uint8Array(end.buffer)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+}
+const xesc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])).replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
+const colName = i => String.fromCharCode(65 + i);
+const XL_HEAD = ["Time","Run","Lane","Car","UV","Solar","CC","Air","Track","SL Location","SL KEG","SL Sticky","10ft KEG","Push","60ft KEG","80ft KEG","125ft KEG","125ft Etc.","Sticky","330ft KEG","330ft Etc.","Nate","Notes"];
+function cellXML(ref, v, s) { if (v === "" || v == null) return `<c r="${ref}"${s ? ` s="${s}"` : ""}/>`;
+  if (typeof v === "number") return `<c r="${ref}"${s ? ` s="${s}"` : ""}><v>${v}</v></c>`;
+  return `<c r="${ref}" t="inlineStr"${s ? ` s="${s}"` : ""}><is><t xml:space="preserve">${xesc(v)}</t></is></c>`; }
+function buildXlsx(rows, sheetName, title) {
+  const out = [`<row r="1">${cellXML("A1", title, 3)}</row>`, `<row r="3">${XL_HEAD.map((h, i) => cellXML(colName(i) + "3", h, 2)).join("")}</row>`];
+  rows.forEach((e, ri) => { const r = ri + 4;
+    out.push(`<row r="${r}">` + COLS.map((c, ci) => { const ref = colName(ci) + r, v = cellValue(e, c.k);
+      if (c.k === "time" && e.time) { const [hh, mm] = e.time.split(":").map(Number); return cellXML(ref, (hh * 60 + mm) / 1440, 1); }
+      if (/^-?\d+(\.\d+)?$/.test(String(v ?? ""))) return cellXML(ref, Number(v));
+      return cellXML(ref, has(v) ? String(v) : ""); }).join("") + `</row>`); });
+  const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="3" topLeftCell="A4" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols><col min="1" max="1" width="10" customWidth="1"/><col min="23" max="23" width="44" customWidth="1"/></cols><sheetData>${out.join("")}</sheetData></worksheet>`;
+  const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="h:mm AM/PM"/></numFmts><fonts count="3"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="16"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="4"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
+  return zipStore([
+    ["[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`],
+    ["_rels/.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`],
+    ["xl/workbook.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${xesc(sheetName)}" sheetId="1" r:id="rId1"/></sheets></workbook>`],
+    ["xl/_rels/workbook.xml.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`],
+    ["xl/worksheets/sheet1.xml", sheet], ["xl/styles.xml", styles]]);
+}
+$("dl").onclick = () => {
+  const ev = events.find(e => e.id === curEvent); const rows = curDate ? dayEntries() : [];
+  if (!ev || !rows.length) { toast("Pick a day that has readings first."); return; }
+  const blob = buildXlsx(rows, dayLabel(curDate), `${ev.track} · ${prettyDate(curDate)}`);
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+  a.download = `${ev.track.replace(/[^A-Za-z0-9]+/g, "-")}-${dayLabel(curDate)}-${curDate}.xlsx`;
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+};
+window.__trackInfo = { buildXlsx, cellValue, COLS }; // for testing
+</script>
+</body>
+</html>

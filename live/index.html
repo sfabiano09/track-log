@@ -1,0 +1,1216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Track Log Live</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Track Log Live">
+<meta name="theme-color" content="#EEF0F2">
+<meta name="color-scheme" content="light only">
+<link rel="apple-touch-icon" href="../icon-180.png">
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Layout: one column, timing-slip rows; big tap targets for gloves and sun. Sticky-note yellow marks "add" and the active choice. */
+:root{
+  --bg:#EEF0F2; --surface:#FFFFFF; --ink:#0B0D0F; --muted:#3E454C; --line:#AEB6BD;
+  --note:#FFD43B; --note-ink:#1A1C1E; --note-soft:#FFF4C2;
+  --good:#1E7F4E; --warn:#B4500A; --bad:#B42318;
+  --display:"Barlow Condensed","Arial Narrow","Roboto Condensed",system-ui,sans-serif;
+  --body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --r:10px;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:16px/1.4 var(--body);
+  padding:env(safe-area-inset-top,0) max(16px,env(safe-area-inset-right,0)) calc(96px + env(safe-area-inset-bottom,0)) max(16px,env(safe-area-inset-left,0));
+  font-variant-numeric:tabular-nums;-webkit-tap-highlight-color:transparent}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--note);outline-offset:2px}
+[hidden]{display:none!important}
+.label{font:600 13px/1 var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+
+/* header */
+header.top{display:flex;align-items:center;gap:12px;padding-block:14px 10px}
+.event{flex:1;min-width:0}
+.event h1{margin:0;font:700 30px/1 var(--display);letter-spacing:.01em;text-wrap:balance}
+.event .sub{color:var(--muted);font-size:15px;margin-top:3px}
+.iconbtn{width:46px;height:46px;border-radius:50%;border:1px solid var(--line);background:var(--surface);display:grid;place-items:center}
+.iconbtn svg{width:22px;height:22px;stroke:var(--ink);fill:none;stroke-width:2}
+
+.days{display:flex;gap:8px;overflow-x:auto;padding-block:4px 12px;scrollbar-width:none}
+.days::-webkit-scrollbar{display:none}
+.chip{flex:none;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:8px 14px;font:600 15px/1 var(--display);letter-spacing:.04em}
+.chip[aria-pressed="true"]{background:var(--note);border-color:var(--note);color:var(--note-ink)}
+
+.add{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}
+.add button{border:0;border-radius:var(--r);background:var(--note);color:var(--note-ink);padding:14px 4px 12px;display:flex;flex-direction:column;align-items:center;gap:6px;font:700 16px/1 var(--display);letter-spacing:.04em;text-transform:uppercase;box-shadow:0 1px 0 rgba(0,0,0,.12)}
+.add button svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:2}
+.add button:active{transform:translateY(1px)}
+
+/* entry list */
+.list{display:flex;flex-direction:column;border-top:1px solid var(--line)}
+.row{display:grid;grid-template-columns:62px 1fr;gap:10px;padding:12px 2px;border-bottom:1px solid var(--line);background:none;border-left:0;border-right:0;border-top:0;text-align:left;width:100%}
+.row .t{font:700 18px/1.1 var(--display)}
+.row .ty{display:block;margin-top:4px;font:600 11px/1 var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.row .main{min-width:0}
+.row .head{font:600 17px/1.2 var(--display);letter-spacing:.02em}
+.row .head .tag{display:inline-block;background:var(--ink);color:var(--bg);border-radius:4px;padding:1px 6px;margin-right:6px;font-size:14px}
+.row .nums{color:var(--ink);font-size:14px;margin-top:2px;overflow-wrap:anywhere}
+.row .nums b{font-weight:600;color:var(--muted);font-size:12px;margin-right:2px}
+.row .note{color:var(--muted);font-size:14px;margin-top:2px;overflow-wrap:anywhere}
+.row.run{background:linear-gradient(90deg,var(--note-soft),transparent 70%)}
+.row .xl{display:block;margin-top:5px;font:600 11px/1 var(--display);letter-spacing:.06em;text-transform:uppercase}
+.row .xl.ok{color:var(--good)} .row .xl.wait{color:var(--warn)} .row .xl.txt{color:var(--ink)}
+.row .xl.txt::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--note);box-shadow:0 0 0 1px var(--ink);margin-right:5px;vertical-align:1px}
+.sheet .actions .btn{padding-inline:8px}
+/* graphs: one chart per measure on a shared clock; each keeps its own scale */
+#graphs{--grid:#E3E6E9;--axis:#9AA2A9;--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s6:#008300;--s7:#6250d6;--s8:#e34948}
+.g-filters{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding-block:4px 6px}
+.g-key{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin:2px 0 8px}
+.g-key b{color:var(--ink)}
+.g-sw{display:inline-block;width:0;height:14px;border-left:2px solid var(--ink);margin-right:6px;vertical-align:-2px}
+.g-sw.dash{border-left-style:dashed;opacity:.7}
+.g-readout{position:sticky;top:64px;z-index:1;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:10px;min-height:54px}
+.g-readout .t{font:700 17px/1.1 var(--display)}
+.g-readout .vals{display:flex;flex-wrap:wrap;gap:2px 12px;font-size:13px;margin-top:3px}
+.g-readout .vals span{white-space:nowrap}
+.g-readout i,.g-legend i{display:inline-block;border-radius:50%;width:8px;height:8px;margin-right:4px}
+.g-legend i{width:14px;height:3px;border-radius:2px;vertical-align:3px;margin-right:5px}
+.g-panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 4px 4px 10px;margin-bottom:10px}
+.g-ptitle{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding-right:8px}
+.g-ptitle h3{margin:0;font:700 17px/1.1 var(--display)}
+.g-ptitle .u{color:var(--muted);font-size:12px}
+.g-legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:13px;margin:4px 0 2px}
+.g-panel svg{display:block;width:100%;height:auto;touch-action:pan-y;overflow:visible}
+.g-panel svg text{font-family:var(--body);font-size:11px;fill:var(--muted)}
+.g-panel svg .lbl{font-size:11.5px;font-weight:600;fill:var(--ink)}
+.g-none{padding:14px 4px;color:var(--muted)}
+.pick-sheet{position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.35);display:flex;align-items:flex-end}
+.pick-card{width:100%;background:var(--surface);border-radius:16px 16px 0 0;display:flex;flex-direction:column;gap:12px;
+  padding:18px max(16px,env(safe-area-inset-right,0)) calc(16px + env(safe-area-inset-bottom,0)) max(16px,env(safe-area-inset-left,0))}
+.pick-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.btn.big{min-height:64px;font-size:19px}
+.btn.done-mark{background:var(--surface);color:var(--good);border-color:var(--good)}
+.row .xl.wa::before{background:#25D366}
+body[data-role="view"] .add, body[data-role="view"] #saveEntry, body[data-role="view"] #saveText, body[data-role="view"] #delArea, body[data-role="view"] #importBox{display:none!important}
+.linkbtn{background:none;border:0;padding:0 0 0 6px;color:inherit;text-decoration:underline;font:inherit;cursor:pointer}
+.empty{padding:28px 6px;color:var(--muted);text-align:center}
+.empty strong{display:block;color:var(--ink);font:700 20px/1.2 var(--display);margin-bottom:6px}
+
+/* bottom bar */
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);
+  padding:10px max(16px,env(safe-area-inset-right,0)) calc(10px + env(safe-area-inset-bottom,0)) max(16px,env(safe-area-inset-left,0));display:flex;gap:10px;align-items:center}
+.bar .info{flex:1;min-width:0;font-size:12px;line-height:1.3;color:var(--muted)}
+.bar .btn{padding-inline:12px}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:12px 16px;font:700 16px/1 var(--display);letter-spacing:.05em;text-transform:uppercase;min-height:48px}
+.btn.primary{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.btn.note{background:var(--note);color:var(--note-ink);border-color:var(--note)}
+.btn.danger{color:var(--bad)}
+.btn:disabled{opacity:.45}
+
+/* sheet (form / settings) */
+.sheet{position:fixed;inset:0;background:var(--bg);overflow-y:auto;z-index:10;
+  padding:env(safe-area-inset-top,0) max(16px,env(safe-area-inset-right,0)) calc(110px + env(safe-area-inset-bottom,0)) max(16px,env(safe-area-inset-left,0))}
+.sheet header{display:flex;align-items:center;gap:10px;padding-block:14px 8px;position:sticky;top:0;background:var(--bg);z-index:2}
+.sheet header h2{flex:1;margin:0;font:700 26px/1 var(--display)}
+.sheet .actions{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);display:flex;gap:10px;
+  padding:10px max(16px,env(safe-area-inset-right,0)) calc(10px + env(safe-area-inset-bottom,0)) max(16px,env(safe-area-inset-left,0));z-index:3}
+.sheet .actions .btn{flex:1}
+fieldset{border:0;margin:0 0 18px;padding:0;min-width:0}
+legend{padding:0;margin-bottom:8px}
+.sec{display:flex;justify-content:space-between;align-items:center;margin:18px 0 8px}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.grid.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.f{display:flex;flex-direction:column;gap:4px;min-width:0}
+.f label{font:600 12px/1 var(--display);letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.f input,.f select,.f textarea{width:100%;min-height:50px;border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:10px 10px;font-size:20px;font-weight:600}
+.f textarea{font-size:17px;font-weight:500;min-height:76px;resize:vertical}
+.f input.auto{background:var(--note-soft)}
+.station{border:1px solid var(--line);border-radius:var(--r);background:var(--surface);padding:10px;display:flex;flex-direction:column;gap:8px}
+.station .label{color:var(--ink);font-size:15px}
+.station .f input{background:var(--bg)}
+.stations{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.station.wide,.station.wide2{grid-column:1/-1}
+.station.wide .picks{flex-wrap:wrap}
+.picks{display:flex;flex-wrap:wrap;gap:6px}
+.pick{border:1px solid var(--line);background:var(--surface);border-radius:8px;min-width:48px;min-height:44px;padding:8px 10px;font:700 17px/1 var(--display);letter-spacing:.03em}
+.pick[aria-pressed="true"]{background:var(--note);color:var(--note-ink);border-color:var(--note)}
+.picks.small .pick{min-width:40px;min-height:38px;font-size:15px;padding:6px 8px}
+.status{font-size:14px;color:var(--muted);min-height:20px}
+.status.ok{color:var(--good)} .status.err{color:var(--bad)}
+.help{color:var(--muted);font-size:14px;margin:4px 0 0}
+.preview{white-space:pre-wrap;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px;font-size:15px}
+.toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:12px 18px;border-radius:999px;font-weight:600;z-index:50;max-width:calc(100% - 32px);text-align:center}
+.confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="event">
+    <h1 id="evTrack">Track Log</h1>
+    <div class="sub" id="evSub"></div>
+  </div>
+  <button class="iconbtn" id="openGraphs" aria-label="Graphs for this day">
+    <svg viewBox="0 0 24 24"><path d="M4 4v16h16"/><path d="M7 15l4-5 3 3 5-7"/></svg>
+  </button>
+  <button class="iconbtn" id="openSettings" aria-label="Settings">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+  </button>
+</header>
+
+<nav class="days" id="days" aria-label="Days"></nav>
+
+<div class="add">
+  <button data-new="run"><svg viewBox="0 0 24 24"><path d="M4 18h16M6 18l2-6h8l2 6M9 12V8h6v4"/></svg>Run</button>
+  <button data-new="track"><svg viewBox="0 0 24 24"><path d="M12 3v18M5 7h4M5 12h4M5 17h4M15 7h4M15 12h4M15 17h4"/></svg>Track</button>
+  <button data-new="weather"><svg viewBox="0 0 24 24"><circle cx="9" cy="9" r="3.5"/><path d="M9 2v2M2 9h2M4 4l1.4 1.4M14 4l-1.4 1.4M8 20h9a4 4 0 0 0 0-8 5 5 0 0 0-8.6 2.4A3 3 0 0 0 8 20z"/></svg>Weather</button>
+  <button data-new="work"><svg viewBox="0 0 24 24"><path d="M14 4l6 6-9 9H5v-6z M12 6l6 6"/></svg>Work</button>
+</div>
+
+<div class="list" id="list"></div>
+
+<div class="bar">
+  <div class="info" id="barInfo"></div>
+  <button class="btn" id="copyDay" hidden>More</button>
+  <button class="btn" id="openExcel" hidden>Open Excel</button>
+  <a class="btn primary" id="teamLink" href="../team/" style="text-decoration:none;display:inline-flex;align-items:center">Team page</a>
+</div>
+
+<!-- Entry form -->
+<section class="sheet" id="form" hidden aria-labelledby="formTitle">
+  <header>
+    <h2 id="formTitle">Run</h2>
+    <button class="iconbtn" id="closeForm" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </header>
+
+  <fieldset>
+    <div class="grid">
+      <div class="f"><label for="f_time">Time</label><input id="f_time" type="time"></div>
+      <div class="f" data-show="run work track"><label for="f_run">Run</label><select id="f_run"></select></div>
+      <div class="f" data-show="run track work"><label for="f_lane">Lane</label><select id="f_lane"></select></div>
+    </div>
+  </fieldset>
+
+  <fieldset data-show="run">
+    <legend class="label">Car</legend>
+    <div class="picks" id="carPicks"></div>
+  </fieldset>
+
+  <fieldset data-show="work">
+    <legend class="label">Track work</legend>
+    <div class="picks" id="workPicks"></div>
+  </fieldset>
+
+  <fieldset data-show="run weather track">
+    <div class="sec"><span class="label">Weather</span><button class="btn note" id="pullWx" type="button">Pull weather</button></div>
+    <div class="grid">
+      <div class="f"><label for="f_uv">UV</label><input id="f_uv" inputmode="decimal"></div>
+      <div class="f"><label for="f_solar">Solar</label><input id="f_solar" inputmode="decimal"></div>
+      <div class="f"><label for="f_cc">Cloud %</label><input id="f_cc" inputmode="decimal"></div>
+      <div class="f"><label for="f_air">Air °F</label><input id="f_air" inputmode="decimal"></div>
+      <div class="f"><label for="f_track">Track °F</label><input id="f_track" inputmode="decimal"></div>
+    </div>
+    <div class="status" id="wxStatus" aria-live="polite"></div>
+  </fieldset>
+
+  <fieldset data-show="run track">
+    <div class="sec"><span class="label">KEG readings</span></div>
+    <div class="stations">
+      <div class="station wide">
+        <span class="label">Starting line</span>
+        <div class="grid"><div class="f"><label for="f_slLoc">Location</label><input id="f_slLoc" placeholder='1"'></div><div class="f"><label for="f_slKeg">KEG</label><input id="f_slKeg" inputmode="decimal"></div><div class="f"><label for="f_slSticky">Sticky</label><input id="f_slSticky" inputmode="decimal"></div></div>
+      </div>
+      <div class="station wide2">
+        <span class="label">10 ft</span>
+        <div class="grid two"><div class="f"><label for="f_k10">KEG</label><input id="f_k10" inputmode="decimal"></div><div class="f"><label for="f_push">Push</label><input id="f_push" inputmode="decimal"></div></div>
+      </div>
+      <div class="station">
+        <span class="label">60 ft</span>
+        <div class="f"><label for="f_k60">KEG</label><input id="f_k60" inputmode="decimal"></div>
+      </div>
+      <div class="station">
+        <span class="label">80 ft</span>
+        <div class="f"><label for="f_k80">KEG</label><input id="f_k80" inputmode="decimal"></div>
+      </div>
+      <div class="station wide">
+        <span class="label">125 ft</span>
+        <div class="f"><label for="f_k125">KEG</label><input id="f_k125" inputmode="decimal"></div>
+      </div>
+      <div class="station">
+        <span class="label">Sticky</span>
+        <div class="f"><label for="f_sticky">Reading</label><input id="f_sticky" inputmode="decimal"></div>
+      </div>
+      <div class="station">
+        <span class="label">Nate</span>
+        <div class="f"><label for="f_nate">Reading</label><input id="f_nate" inputmode="decimal"></div>
+      </div>
+      <div class="station wide">
+        <span class="label">330 ft</span>
+        <div class="f"><label for="f_k330">KEG</label><input id="f_k330" inputmode="decimal"></div>
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset data-show="run">
+    <div class="sec"><span class="label">Result</span></div>
+    <div class="grid two">
+      <div class="f"><label for="f_et">ET</label><input id="f_et" inputmode="decimal" placeholder="3.91"></div>
+      <div class="f"><label for="f_mph">MPH</label><input id="f_mph" inputmode="decimal" placeholder="332"></div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <div class="f"><label for="f_notes">Notes</label><textarea id="f_notes" placeholder="Track feel, sky, where it was sprayed…"></textarea></div>
+    <div class="picks small" id="notePicks" style="margin-top:8px"></div>
+  </fieldset>
+
+  <fieldset id="entryTools" hidden>
+    <div class="sec"><span class="label">Text message</span></div>
+    <div class="status" id="textedStatus"></div>
+    <div class="preview" id="msgPreview"></div>
+    <div class="confirm" style="margin-top:8px">
+      <button class="btn note" type="button" id="textCrew">Text crew</button>
+      <button class="btn note" type="button" id="waCrew">WhatsApp</button>
+      <button class="btn" type="button" id="shareMsg">Share…</button>
+      <button class="btn" type="button" id="copyMsg">Copy</button>
+    </div>
+    <div class="sec"><span class="label">Remove</span></div>
+    <div class="confirm" id="delArea">
+      <button class="btn danger" type="button" id="delEntry">Delete entry</button>
+    </div>
+  </fieldset>
+
+  <div class="actions">
+    <button class="btn" type="button" id="cancelForm">Cancel</button>
+    <button class="btn note" type="button" id="saveText">Save &amp; Text</button>
+    <button class="btn primary" type="button" id="saveEntry">Save</button>
+  </div>
+</section>
+
+<!-- Send to Excel -->
+<section class="sheet" id="export" hidden aria-labelledby="expTitle">
+  <header>
+    <h2 id="expTitle">Send to Excel</h2>
+    <button class="iconbtn" id="closeExport" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </header>
+  <p class="help" id="expSummary"></p>
+
+  <div id="spBox">
+    <div class="sec"><span class="label">SharePoint</span></div>
+    <div class="status" id="spState"></div>
+    <div class="confirm" style="margin-top:6px"><button class="btn primary" type="button" id="spSendDay">Send this day to the workbook</button></div>
+    <p class="help">Sends any of this day's rows that aren't in the workbook yet. Rows already sent are left alone.</p>
+  </div>
+
+  <div class="sec"><span class="label">On the iPhone · Paste into one cell</span></div>
+  <div class="confirm"><button class="btn primary" type="button" id="expLine">Copy for sheet</button></div>
+  <div class="status" id="expLineStatus" aria-live="polite"></div>
+  <p class="help">Copies the whole day as one line. In Excel, open the <b class="expDay"></b> tab, tap cell <b>Z1</b>, tap the bar at the top where the cell's text shows, tap <b>Select All</b>, then <b>Paste</b>, then the check mark. The formulas fill every row from it. Paste again anytime and the sheet updates to match the app.</p>
+
+  <div class="sec"><span class="label">On a computer · Copy and paste rows</span></div>
+  <div class="confirm"><button class="btn" type="button" id="expCopy">Copy rows</button></div>
+  <div class="status" id="expCopyStatus" aria-live="polite"></div>
+  <div class="f" style="margin-top:6px"><label for="expText">Rows (if Copy doesn't work, press and hold here, tap Select All, then Copy)</label>
+    <textarea id="expText" readonly style="font:13px/1.4 ui-monospace,Menlo,monospace;min-height:120px;white-space:pre;overflow-x:auto"></textarea></div>
+  <p class="help">For Excel on a computer, in a tab without the Z1 formulas. Click the first empty cell in column A and paste.</p>
+
+  <div class="sec"><span class="label">Send as a file</span></div>
+  <div class="confirm"><button class="btn note" type="button" id="expShare">Share file…</button></div>
+  <p class="help">Makes an Excel file of these rows. In the share menu tap <b>Save to Files</b> and pick your OneDrive or SharePoint folder (or On My iPhone). Then open the file in the Excel app, select rows 2 and down across columns A to X, copy, and paste at A4 of the <b class="expDay"></b> tab.</p>
+
+  <div class="actions">
+    <button class="btn" type="button" id="doneExport">Done</button>
+  </div>
+</section>
+
+<!-- Send chooser (after Save & Text) -->
+<div class="pick-sheet" id="sendPick" hidden role="dialog" aria-labelledby="sendPickTitle">
+  <div class="pick-card">
+    <div class="label" id="sendPickTitle">Saved. Send it to…</div>
+    <div class="pick-row">
+      <button class="btn note big" type="button" id="pickSms">Messages</button>
+      <button class="btn note big" type="button" id="pickWa">WhatsApp</button>
+    </div>
+    <p class="help" id="sendPickHelp">Send to one or both. In WhatsApp, tap your group, then Send.</p>
+    <button class="btn" type="button" id="pickDone" style="width:100%">Done</button>
+  </div>
+</div>
+
+<!-- Graphs -->
+<section class="sheet" id="graphs" hidden aria-labelledby="gTitle">
+  <header>
+    <h2 id="gTitle">Graphs</h2>
+    <button class="iconbtn" id="closeGraphs" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </header>
+  <div class="help" id="gSub" style="margin:0 0 4px"></div>
+  <div class="g-filters" role="group" aria-label="Lane">
+    <span class="label" style="margin-right:4px">Lane</span>
+    <button class="chip" data-glane="all" aria-pressed="true">Both</button>
+    <button class="chip" data-glane="L" aria-pressed="false">Left</button>
+    <button class="chip" data-glane="R" aria-pressed="false">Right</button>
+  </div>
+  <div class="g-key"><span><span class="g-sw"></span><b>Scrape</b></span><span><span class="g-sw dash"></span><b>Spray</b></span><span>Marked across every chart</span></div>
+  <div class="g-readout" id="gReadout" aria-live="polite"><div class="help">Touch or drag across a chart to see the readings at that time.</div></div>
+  <div id="gPanels"></div>
+</section>
+
+<!-- Settings -->
+<section class="sheet" id="settings" hidden aria-labelledby="setTitle">
+  <header>
+    <h2 id="setTitle">Settings</h2>
+    <button class="iconbtn" id="closeSettings" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </header>
+
+  <fieldset>
+    <legend class="label">Event</legend>
+    <div class="f"><label for="s_track">Track</label><select id="s_track"></select></div>
+    <div class="grid two" style="margin-top:8px">
+      <div class="f"><label for="s_lat">Latitude</label><input id="s_lat" inputmode="decimal"></div>
+      <div class="f"><label for="s_lon">Longitude</label><input id="s_lon" inputmode="decimal"></div>
+    </div>
+    <div class="confirm" style="margin-top:8px"><button class="btn" type="button" id="useLoc">Use my location</button></div>
+    <p class="help">Weather is pulled for these coordinates. Stand at the starting line and tap "Use my location" the first time at a new track.</p>
+  </fieldset>
+
+  <fieldset>
+    <legend class="label">Tomorrow.io</legend>
+    <div class="f"><label for="s_key">API key</label><input id="s_key" autocomplete="off" autocapitalize="off" spellcheck="false" style="font-size:16px"></div>
+    <div class="confirm" style="margin-top:8px"><button class="btn note" type="button" id="testWx">Test weather</button></div>
+    <div class="preview" id="testOut" hidden style="margin-top:8px"></div>
+    <p class="help">The key stays on this phone. It is never saved anywhere else.</p>
+  </fieldset>
+
+  <fieldset hidden>
+    <legend class="label">Excel workbook</legend>
+    <div class="f"><label for="s_xlLink">Workbook link for this track</label><input id="s_xlLink" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Paste the SharePoint link to the Excel file" style="font-size:14px"></div>
+    <p class="help">In SharePoint or the Excel app, use Copy link on this track's workbook and paste it here. The Open Excel button then opens it straight in the Excel app.</p>
+    <label style="display:flex;gap:10px;align-items:center;margin-top:10px;font-size:16px"><input type="checkbox" id="s_autoCopy" style="width:22px;height:22px;flex:none"> Copy the day for the sheet every time I save</label>
+  </fieldset>
+
+  <fieldset hidden>
+    <legend class="label">Automatic sending (needs your Microsoft admin)</legend>
+    <div class="grid two">
+      <div class="f"><label for="s_msClient">Client ID</label><input id="s_msClient" autocomplete="off" autocapitalize="off" spellcheck="false" style="font-size:14px"></div>
+      <div class="f"><label for="s_msTenant">Tenant ID</label><input id="s_msTenant" autocomplete="off" autocapitalize="off" spellcheck="false" style="font-size:14px"></div>
+    </div>
+    <p class="help">From your Microsoft 365 admin. Only needed once.</p>
+    <div class="confirm" style="margin-top:8px">
+      <button class="btn note" type="button" id="msSignIn">Sign in to Microsoft</button>
+      <button class="btn" type="button" id="msSignOut" hidden>Sign out</button>
+    </div>
+    <div class="status" id="msStatus" aria-live="polite"></div>
+    <div class="f" style="margin-top:10px"><label for="s_book">Workbook link for automatic sending</label><input id="s_book" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Paste the SharePoint link to the Excel file" style="font-size:14px"></div>
+    <div class="confirm" style="margin-top:8px"><button class="btn" type="button" id="bookConnect">Connect workbook</button></div>
+    <div class="status" id="bookStatus" aria-live="polite"></div>
+    <p class="help">In SharePoint, open the file's menu, tap Copy link, and paste it here. Each save then goes straight into the next empty row of that day's tab.</p>
+  </fieldset>
+
+  <fieldset>
+    <legend class="label">Text group</legend>
+    <div class="label" style="margin-bottom:6px">Crew phone numbers</div>
+    <div id="phoneList" style="display:flex;flex-direction:column;gap:8px"></div>
+    <div class="confirm" style="margin-top:8px"><button class="btn" type="button" id="addPhone">Add number</button></div>
+  </fieldset>
+
+  <fieldset>
+    <legend class="label">Lists</legend>
+    <div class="f"><label for="s_cars">Cars</label><input id="s_cars" style="font-size:16px"></div>
+    <div class="f" style="margin-top:8px"><label for="s_work">Track work</label><input id="s_work" style="font-size:16px"></div>
+    <div class="f" style="margin-top:8px"><label for="s_notes">Quick notes</label><input id="s_notes" style="font-size:16px"></div>
+    <p class="help">Separate items with commas.</p>
+  </fieldset>
+
+  <fieldset>
+    <legend class="label">Team login</legend>
+    <div class="status" id="acctStatus"></div>
+    <div class="confirm" style="margin-top:8px"><button class="btn" type="button" id="signOutBtn">Sign out</button></div>
+    <p class="help">Readings save to the team database and show up live on the <a href="../team/">team page</a>. With no signal they wait on this phone and upload on their own.</p>
+  </fieldset>
+
+  <fieldset id="importBox">
+    <legend class="label">Old Track Log readings</legend>
+    <div class="confirm"><button class="btn" type="button" id="importOld">Bring in readings from the old app</button></div>
+    <div class="status" id="importStatus" aria-live="polite"></div>
+    <p class="help">Copies the readings saved in the original Track Log on this phone into the team database. Safe to tap more than once; nothing is duplicated.</p>
+  </fieldset>
+
+  <fieldset hidden>
+    <legend class="label">Backup</legend>
+    <div class="confirm">
+      <button class="btn" type="button" id="copyBackup">Copy backup</button>
+      <button class="btn" type="button" id="showRestore">Restore</button>
+    </div>
+    <div id="restoreArea" hidden style="margin-top:8px">
+      <div class="f"><label for="s_restore">Paste a backup here</label><textarea id="s_restore" style="font-size:14px"></textarea></div>
+      <button class="btn" type="button" id="doRestore" style="margin-top:8px">Restore from backup</button>
+    </div>
+    <p class="help">Readings are saved on this phone. Paste a backup into the notes app now and then if you want a spare copy.</p>
+  </fieldset>
+
+  <div class="actions">
+    <button class="btn primary" type="button" id="saveSettings">Done</button>
+  </div>
+</section>
+
+<section class="sheet" id="loginScreen" hidden aria-labelledby="loginTitle" style="z-index:30">
+  <div style="max-width:420px;margin:0 auto;padding-top:12vh;display:flex;flex-direction:column;gap:12px">
+    <h2 id="loginTitle" style="margin:0;font:700 36px/1 var(--display)">Track Log Live</h2>
+    <p class="help" style="margin:0;font-size:16px">Sign in with the team's Edit password to log readings. The View password opens the app read-only.</p>
+    <form id="loginForm" style="display:flex;flex-direction:column;gap:10px">
+      <div class="f"><label for="loginPw">Team password</label><input id="loginPw" type="password" autocomplete="current-password" required></div>
+      <div class="status err" id="loginErr" aria-live="polite"></div>
+      <button class="btn primary" type="submit" id="loginBtn">Sign in</button>
+    </form>
+  </div>
+</section>
+
+<div class="toast" id="toast" hidden role="status"></div>
+
+<script>
+"use strict";
+/* ---------- reference data (from the team's Data tab) ---------- */
+const TRACKS = [
+  ["Gainesville",29.7480,-82.2830],["Phoenix",33.2290,-111.9700],["Pomona",34.0880,-117.7680],
+  ["Charlotte",35.3530,-80.6830],["Valdosta",30.8870,-83.2730],["Joliet",41.4700,-88.0580],
+  ["Budds Creek",38.3700,-76.8300],["Epping",42.9970,-71.0820],["Bristol",36.5160,-82.2580],
+  ["Norwalk",41.2270,-82.5830],["Sonoma",38.1610,-122.4550],["Seattle",47.3220,-122.1460],
+  ["Brainerd",46.4200,-94.2720],["Indy",39.8010,-86.3480],["Martin",42.5370,-85.6480],
+  ["Rockingham",34.9800,-79.6100],["St. Louis",38.6500,-90.1340],["Dallas",32.3600,-96.6940],
+  ["Las Vegas",36.2720,-115.0110]
+];
+const RUNS = ["","Q1","Q2","Q3","Q4","Q5","E1","E2","E3","E4","T1","T2","T3","T4","T5","T6","T7","T8","T9","T10"];
+const LANES = ["","L","R","1","2","3","4"];
+const GRADES = ["A++","A+","A","A-","B+","B","B-","C+","C","C-"];
+const DEF = {
+  cars:"Austin, Matt H, PM, FSS, FC, TF, PSC, TAFC, TAD, TS, FX, TD, PSM",
+  work:"Spray, Scrape, Prep, Delay",
+  notes:"Drag only, 660' - WB, 1320' - 40', 57' - WB, 85' - WB, Light haze, Light cloud"
+};
+const TYPE_NAME = {run:"Run",track:"Track",weather:"Weather",work:"Work"};
+const DAY3 = ["SUN","MON","TUE","WED","THURS","FRI","SAT"];
+
+/* ---------- storage (wrapped: Safari private mode can throw) ---------- */
+const store = {
+  get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},
+  set(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true}catch(e){toast("Couldn't save on this phone. Storage may be full.");return false}}
+};
+let entries = [];   // filled live from the team database (see the module script at the end)
+// settings: start from the original app's settings the first time, then keep our own copy
+if(!store.get("tl2.cfg",null)){const old=store.get("tl.cfg",{});store.set("tl2.cfg",{track:old.track,lat:old.lat,lon:old.lon,key:old.key,phones:old.phones,cars:old.cars,work:old.work,notes:old.notes,coords:old.coords})}
+let cfg = Object.assign({track:"St. Louis",lat:null,lon:null,key:"",phones:"",cars:DEF.cars,work:DEF.work,notes:DEF.notes,coords:{},autoCopy:false}, store.get("tl2.cfg",{}));
+cfg.autoCopy=false;
+let curDate = todayISO();
+
+/* ---------- helpers ---------- */
+const $ = id => document.getElementById(id);
+function todayISO(d=new Date()){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+function nowHM(){const d=new Date();return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0")}
+function list(s){return String(s||"").split(",").map(x=>x.trim()).filter(Boolean)}
+function dayLabel(iso){const d=new Date(iso+"T12:00:00");return DAY3[d.getDay()]}
+function prettyDate(iso){const d=new Date(iso+"T12:00:00");return d.toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"})}
+function time12(hm){if(!hm)return "";let[h,m]=hm.split(":").map(Number);const ap=h>=12?"PM":"AM";h=h%12||12;return h+":"+String(m).padStart(2,"0")+" "+ap}
+function trackCoords(name){
+  const o=cfg.coords&&cfg.coords[name];if(o)return o;
+  const t=TRACKS.find(t=>t[0]===name);return t?{lat:t[1],lon:t[2]}:null}
+function esc(s){return String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+function has(v){return v!==undefined&&v!==null&&String(v).trim()!==""}
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
+function save(){}   // the team database keeps the readings
+function pushEntry(e){if(window.LIVE)LIVE.save(e)}
+let tt;function toast(msg){const t=$("toast");t.textContent=msg;t.hidden=false;clearTimeout(tt);tt=setTimeout(()=>t.hidden=true,2600)}
+
+/* ---------- Excel row: columns A..W in the SAT/SUN tab order ---------- */
+const COLS = ["time","run","lane","car","uv","solar","cc","air","track","slLoc","slKeg","slStk","k10","push","k60","k80","k125","g125","sticky","k330","g330","nate","notes"];
+function notesText(e){
+  const parts=[];
+  if(has(e.notes))parts.push(e.notes.trim());
+  if(has(e.et)||has(e.mph))parts.push([e.et,has(e.mph)?e.mph+"mph":""].filter(has).join(", "));
+  return parts.join(" / ");
+}
+function excelRow(e){
+  return COLS.map(c=>{
+    let v = c==="time"?time12(e.time): c==="car"?(e.type==="work"?e.work:e.car): c==="notes"?notesText(e): c==="slStk"?(has(e.slSticky)?e.slSticky:e.slGrade): e[c];
+    return has(v)?String(v).replace(/[\t\r\n]+/g," "):"";
+  }).join("\t")+"\t"; // trailing empty X cell: Notes is merged W:X in the day tabs, so the paste must cover both
+}
+function dayEntries(iso){return entries.filter(e=>e.date===iso&&e.event===cfg.track).sort((a,b)=>(a.time||"").localeCompare(b.time||""))}
+
+/* ---------- text message ---------- */
+function message(e){
+  const L=[];
+  const head=[cfg.track+" "+dayLabel(e.date), e.run, e.lane&&("Lane "+e.lane), e.type==="work"?e.work:e.car, time12(e.time)].filter(has);
+  if(e.type==="weather")head.splice(1,0,"Weather");
+  if(e.type==="track"&&!e.car)head.splice(1,0,"Track reading");
+  L.push(head.join(" · "));
+  const wx=[has(e.track)&&"Track "+e.track+"°", has(e.air)&&"Air "+e.air+"°", has(e.uv)&&"UV "+e.uv, has(e.solar)&&"Solar "+e.solar, has(e.cc)&&"CC "+e.cc+"%"].filter(Boolean);
+  if(wx.length)L.push(wx.join(" · "));
+  const k=[];
+  if(has(e.slKeg)||has(e.slLoc)||has(e.slSticky)||has(e.slGrade))k.push("SL "+[e.slLoc,e.slKeg,(has(e.slSticky)?"Stk "+e.slSticky:""),e.slGrade].filter(has).join(" "));
+  if(has(e.k10)||has(e.push))k.push("10' "+[e.k10,has(e.push)&&("P"+e.push)].filter(Boolean).join(" "));
+  if(has(e.k60))k.push("60' "+e.k60);
+  if(has(e.k80))k.push("80' "+e.k80);
+  if(has(e.k125)||has(e.g125))k.push("125' "+[e.k125,e.g125].filter(has).join(" "));
+  if(has(e.sticky))k.push("Sticky "+e.sticky);
+  if(has(e.k330)||has(e.g330))k.push("330' "+[e.k330,e.g330].filter(has).join(" "));
+  if(has(e.nate))k.push("Nate "+e.nate);
+  if(k.length)L.push(k.join(" · "));
+  if(has(e.et)||has(e.mph))L.push([e.et,has(e.mph)&&(e.mph+" mph")].filter(Boolean).join(" / "));
+  if(has(e.notes))L.push(e.notes.trim());
+  return L.join("\n");
+}
+function smsHref(body){
+  const nums=list(cfg.phones).map(n=>n.replace(/[^\d+]/g,"")).filter(Boolean);
+  if(!nums.length)return null;
+  if(nums.length===1)return "sms:"+nums[0]+"&body="+encodeURIComponent(body);
+  return "sms://open?addresses="+nums.join(",")+"/&body="+encodeURIComponent(body);
+}
+
+/* ---------- weather (Tomorrow.io) ---------- */
+function cToF(c){return Math.round((c*9/5+32)*10)/10}
+async function tioFetch(lat,lon,fields,timeISO){
+  const p=new URLSearchParams({location:lat+","+lon,fields:fields.join(","),units:"metric",apikey:cfg.key});
+  if(timeISO){const t=new Date(timeISO);t.setMinutes(0,0,0);const e=new Date(t.getTime()+3600e3);
+    p.set("timesteps","1h");p.set("startTime",t.toISOString());p.set("endTime",e.toISOString());}
+  else p.set("timesteps","current");
+  const r=await fetch("https://api.tomorrow.io/v4/timelines?"+p.toString());
+  let j=null;try{j=await r.json()}catch(_){}
+  if(!r.ok){const m=(j&&(j.message||j.type))||("HTTP "+r.status);const err=new Error(m);err.status=r.status;throw err}
+  const iv=j&&j.data&&j.data.timelines&&j.data.timelines[0]&&j.data.timelines[0].intervals;
+  if(!iv||!iv.length)throw new Error("No weather came back for that time.");
+  return iv[0].values;
+}
+async function getWeather(dateISO,hm){
+  if(!cfg.key)throw new Error("Add your Tomorrow.io key in Settings first.");
+  const c=trackCoords(cfg.track);if(!c)throw new Error("Set this track's location in Settings.");
+  let when=null;
+  if(dateISO&&hm){const d=new Date(dateISO+"T"+hm+":00");if(Math.abs(Date.now()-d.getTime())>30*60e3)when=d.toISOString();}
+  const fields=["temperature","cloudCover","uvIndex","solarGHI"];
+  let v, solarOk=true;
+  try{v=await tioFetch(c.lat,c.lon,fields,when)}
+  catch(err){
+    if(err.status===400||err.status===403){ solarOk=false; v=await tioFetch(c.lat,c.lon,fields.filter(f=>f!=="solarGHI"),when) }
+    else throw err;
+  }
+  return {
+    uv: v.uvIndex!=null?v.uvIndex:"",
+    solar: solarOk&&v.solarGHI!=null?Math.round(v.solarGHI):"",
+    cc: v.cloudCover!=null?Math.round(v.cloudCover):"",
+    air: v.temperature!=null?Math.round(cToF(v.temperature)):"",
+    solarOk, past:!!when
+  };
+}
+
+/* ---------- main screen ---------- */
+function render(){
+  if(window.liveResub)liveResub();
+  $("evTrack").textContent=cfg.track||"Track Log";
+  $("evSub").textContent=prettyDate(curDate);
+  const dates=[...new Set(entries.filter(e=>e.event===cfg.track).map(e=>e.date).concat([todayISO(),curDate]))].sort();
+  $("days").innerHTML=dates.map(d=>`<button class="chip" data-date="${d}" aria-pressed="${d===curDate}">${dayLabel(d)} ${Number(d.slice(8))}</button>`).join("");
+  const rows=dayEntries(curDate);
+  $("list").innerHTML = rows.length? rows.map(rowHTML).join("") :
+    `<div class="empty"><strong>No readings yet for ${dayLabel(curDate)}</strong>Tap Run, Track, Weather or Work above to log the first one.</div>`;
+  $("barInfo").textContent = window.LIVE&&LIVE.role ? liveStatus() : spConfigured(cfg.track)? syncSummary() : rows.length? `${rows.length} row${rows.length>1?"s":""} · paste into Z1 of the ${dayLabel(curDate)} tab` : "Saves copy the day for Excel";
+  $("copyDay").disabled=!rows.length;
+}
+function rowHTML(e){
+  const n=[];
+  const add=(lab,v)=>{if(has(v))n.push(`<b>${lab}</b>${esc(v)}`)};
+  add("TRK ",e.track);add("AIR ",e.air);add("UV ",e.uv);add("SOL ",e.solar);
+  add("SL ",[e.slKeg,e.slGrade].filter(has).join(" "));add("SL STK ",e.slSticky);add("10′ ",e.k10);add("P ",e.push);add("60′ ",e.k60);add("80′ ",e.k80);
+  add("125′ ",[e.k125,e.g125].filter(has).join(" "));add("STK ",e.sticky);add("330′ ",[e.k330,e.g330].filter(has).join(" "));
+  const who=e.type==="work"?e.work:e.car;
+  const head=[e.run&&`<span class="tag">${esc(e.run)}</span>`, esc([who, e.lane&&("Lane "+e.lane)].filter(has).join(" · ")||TYPE_NAME[e.type])].filter(Boolean).join("");
+  const note=notesText(e);
+  return `<button class="row ${e.type==="run"?"run":""}" data-id="${e.id}">
+    <span><span class="t">${esc(time12(e.time).replace(/ [AP]M/,""))}</span><span class="ty">${TYPE_NAME[e.type]}</span>${e.texted?`<span class="xl txt">Texted</span>`:""}${e.wa?`<span class="xl txt wa">WhatsApp</span>`:""}${e.xl&&!e.dirty?`<span class="xl ok">Row ${e.xl.row}</span>`:e.dirty&&spConfigured(e.event)?`<span class="xl wait">Waiting</span>`:""}</span>
+    <span class="main"><span class="head">${head}</span>${n.length?`<div class="nums">${n.join(" &nbsp;")}</div>`:""}${note?`<div class="note">${esc(note)}</div>`:""}</span>
+  </button>`;
+}
+
+/* ---------- entry form ---------- */
+let editing=null;      // entry object being edited
+const FIELDS=["time","run","lane","uv","solar","cc","air","track","slLoc","slKeg","slSticky","k10","push","k60","k80","k125","sticky","k330","nate","et","mph","notes"];
+function fill(sel,opts){sel.innerHTML=opts.map(o=>`<option value="${esc(o)}">${o||"—"}</option>`).join("")}
+function picks(el,opts,current,onPick){
+  el.innerHTML=opts.map(o=>`<button type="button" class="pick" aria-pressed="${o===current}" data-v="${esc(o)}">${esc(o)}</button>`).join("");
+  el.onclick=ev=>{const b=ev.target.closest(".pick");if(!b)return;const v=b.dataset.v;
+    const on=b.getAttribute("aria-pressed")==="true";
+    el.querySelectorAll(".pick").forEach(p=>p.setAttribute("aria-pressed","false"));
+    if(!on)b.setAttribute("aria-pressed","true");onPick(on?"":v)};
+}
+function openForm(type,entry){
+  editing = entry? Object.assign({},entry) : {id:uid(),type,event:cfg.track,date:curDate,time:curDate===todayISO()?nowHM():""};
+  type=editing.type;
+  $("formTitle").textContent=(entry?"Edit ":"New ")+TYPE_NAME[type].toLowerCase();
+  document.querySelectorAll("#form [data-show]").forEach(el=>el.hidden=!el.dataset.show.split(" ").includes(type));
+  fill($("f_run"),RUNS);fill($("f_lane"),LANES);
+  FIELDS.forEach(f=>{const el=$("f_"+f);if(el){el.value=editing[f]??"";el.classList.remove("auto")}});
+  picks($("carPicks"),list(cfg.cars),editing.car,v=>editing.car=v);
+  picks($("workPicks"),list(cfg.work),editing.work,v=>editing.work=v);
+  document.querySelectorAll("#form [data-grade]").forEach(el=>{const k=el.dataset.grade;picks(el,GRADES,editing[k],v=>editing[k]=v)});
+  $("notePicks").innerHTML=list(cfg.notes).map(n=>`<button type="button" class="pick" data-n="${esc(n)}">${esc(n)}</button>`).join("");
+  $("wxStatus").textContent="";$("wxStatus").className="status";
+  $("entryTools").hidden=!entry;
+  $("delArea").innerHTML=`<button class="btn danger" type="button" id="delEntry">Delete entry</button>`;
+  if(entry){$("msgPreview").textContent=message(editing);showTexted()}
+  $("form").hidden=false;$("form").scrollTop=0;document.body.style.overflow="hidden";
+  if(!entry&&(type==="run"||type==="weather")&&cfg.key)pullWeather(true);
+}
+function readForm(){FIELDS.forEach(f=>{const el=$("f_"+f);if(el)editing[f]=el.value.trim()})}
+function closeForm(){$("form").hidden=true;document.body.style.overflow="";editing=null}
+async function pullWeather(auto){
+  const st=$("wxStatus");st.className="status";st.textContent="Getting weather…";
+  readForm();
+  try{
+    const w=await getWeather(editing.date,editing.time);
+    ["uv","solar","cc","air"].forEach(k=>{const el=$("f_"+k);if(has(w[k])&&(!auto||!has(el.value))){el.value=w[k];el.classList.add("auto")}});
+    st.className="status ok";
+    st.textContent=(w.past?"Weather for that hour":"Current weather")+" pulled from Tomorrow.io"+(w.solarOk?".":". Solar isn't available on this key, so type it in.");
+  }catch(err){
+    st.className="status err";
+    st.textContent = err instanceof TypeError ? "No connection to Tomorrow.io. Type the weather in, or tap Pull weather again once you have signal." : String(err.message||err);
+  }
+}
+function saveEntry(andText){
+  readForm();
+  if(editing.type==="run"&&!editing.car){toast("Pick the car for this run.");return}
+  if(editing.type==="work"&&!editing.work){toast("Pick what track work was done.");return}
+  editing.dirty=true;
+  const i=entries.findIndex(e=>e.id===editing.id);
+  const wasNew=i<0;
+  if(!window.LIVE||LIVE.role!=="edit"){toast("Sign in with the Edit password to save readings.");return}
+  if(wasNew)entries.push(editing);else entries[i]=editing;
+  pushEntry(editing);
+  save();
+  const saved=editing;closeForm();render();syncNow();
+  let copied=false;
+  if(cfg.autoCopy!==false&&navigator.clipboard){
+    const line=sheetLine(entries.filter(e=>e.date===saved.date&&e.event===saved.event).sort((a,b)=>(a.time||"").localeCompare(b.time||"")));
+    navigator.clipboard.writeText(line).then(()=>{copied=true},()=>{});
+  }
+  if(andText){openPick(saved);return}
+  setTimeout(()=>toast("Saved"+(copied?" · copied for Excel":"")),120);
+}
+
+/* ---------- copy / share ---------- */
+async function copyText(text,okMsg){
+  try{await navigator.clipboard.writeText(text);toast(okMsg)}
+  catch(e){
+    const ta=document.createElement("textarea");ta.value=text;ta.setAttribute("readonly","");ta.style.position="fixed";ta.style.opacity="0";
+    document.body.appendChild(ta);ta.select();ta.setSelectionRange(0,text.length);
+    let ok=false;try{ok=document.execCommand("copy")}catch(_){}
+    ta.remove();toast(ok?okMsg:"Couldn't copy. Try again.");
+  }
+}
+
+/* ---------- settings ---------- */
+function openSettings(){
+  fill($("s_track"),TRACKS.map(t=>t[0]));$("s_track").value=cfg.track;
+  setCoordFields();
+  $("s_key").value=cfg.key;renderPhones(list(cfg.phones));
+  $("s_xlLink").value=(cfg.xlLinks||{})[cfg.track]||"";$("s_autoCopy").checked=cfg.autoCopy!==false;
+  $("s_msClient").value=cfg.msClient||"";$("s_msTenant").value=cfg.msTenant||"";renderSp();
+  $("s_cars").value=cfg.cars;$("s_work").value=cfg.work;$("s_notes").value=cfg.notes;
+  $("testOut").hidden=true;$("restoreArea").hidden=true;
+  $("settings").hidden=false;$("settings").scrollTop=0;document.body.style.overflow="hidden";
+}
+function setCoordFields(){const c=trackCoords($("s_track").value)||{};$("s_lat").value=c.lat??"";$("s_lon").value=c.lon??""}
+function readSettings(){
+  cfg.track=$("s_track").value;
+  const lat=parseFloat($("s_lat").value),lon=parseFloat($("s_lon").value);
+  if(isFinite(lat)&&isFinite(lon)){const def=TRACKS.find(t=>t[0]===cfg.track);
+    if(!def||Math.abs(def[1]-lat)>1e-6||Math.abs(def[2]-lon)>1e-6){cfg.coords=cfg.coords||{};cfg.coords[cfg.track]={lat,lon}}}
+  cfg.key=$("s_key").value.trim();
+  cfg.phones=[...document.querySelectorAll("#phoneList input")].map(i=>i.value.trim()).filter(Boolean).join(", ");
+  const mc=$("s_msClient").value.trim(),mt=$("s_msTenant").value.trim();
+  if(mc!==(cfg.msClient||"")||mt!==(cfg.msTenant||""))msalApp=null;
+  cfg.msClient=mc;cfg.msTenant=mt;
+  cfg.xlLinks=cfg.xlLinks||{};const xl=$("s_xlLink").value.trim();if(xl)cfg.xlLinks[cfg.track]=xl;else delete cfg.xlLinks[cfg.track];
+  cfg.autoCopy=$("s_autoCopy").checked;
+  cfg.cars=$("s_cars").value||DEF.cars;cfg.work=$("s_work").value||DEF.work;cfg.notes=$("s_notes").value||DEF.notes;
+  store.set("tl2.cfg",cfg);
+}
+
+/* ---------- SharePoint: write rows straight into the workbook (Microsoft Graph) ---------- */
+const SCOPES=["Files.ReadWrite.All"];
+let msalApp=null, syncing=false, syncAgain=false, lastSyncErr=null, lastSyncAt=null;
+class SignInNeeded extends Error{constructor(){super("Sign in to Microsoft in Settings to send rows to the workbook.")}}
+function spConfigured(track){return !!(cfg.msClient&&cfg.msTenant&&cfg.books&&cfg.books[track])}
+async function msInit(){
+  if(msalApp)return msalApp;
+  if(!cfg.msClient||!cfg.msTenant||!window.msal)return null;
+  const app=new msal.PublicClientApplication({auth:{clientId:cfg.msClient,authority:"https://login.microsoftonline.com/"+cfg.msTenant,redirectUri:location.origin+location.pathname},cache:{cacheLocation:"localStorage"}});
+  await app.initialize();
+  let r=null;try{r=await app.handleRedirectPromise()}catch(e){lastSyncErr=e}
+  if(r&&r.account)app.setActiveAccount(r.account);
+  if(!app.getActiveAccount()&&app.getAllAccounts()[0])app.setActiveAccount(app.getAllAccounts()[0]);
+  msalApp=app;return app;
+}
+async function msToken(interactive){
+  const app=await msInit();if(!app)throw new SignInNeeded();
+  const acc=app.getActiveAccount();
+  if(!acc){if(interactive){await app.loginRedirect({scopes:SCOPES});return new Promise(()=>{})}throw new SignInNeeded()}
+  try{return (await app.acquireTokenSilent({scopes:SCOPES,account:acc})).accessToken}
+  catch(e){if(interactive){await app.acquireTokenRedirect({scopes:SCOPES,account:acc});return new Promise(()=>{})}throw new SignInNeeded()}
+}
+async function graph(method,path,body){
+  const t=await msToken(false);
+  const r=await fetch("https://graph.microsoft.com/v1.0"+path,{method,headers:{Authorization:"Bearer "+t,"Content-Type":"application/json"},body:body?JSON.stringify(body):undefined});
+  let j=null;try{j=await r.json()}catch(_){}
+  if(!r.ok){const e=new Error((j&&j.error&&j.error.message)||("HTTP "+r.status));e.status=r.status;throw e}
+  return j;
+}
+function shareId(url){return "u!"+btoa(unescape(encodeURIComponent(url.trim()))).replace(/=+$/,"").replace(/\//g,"_").replace(/\+/g,"-")}
+const wbPath=b=>`/drives/${encodeURIComponent(b.driveId)}/items/${encodeURIComponent(b.itemId)}/workbook`;
+const wsPath=name=>`/worksheets('${encodeURIComponent(name.replace(/'/g,"''"))}')`;
+async function listTabs(book){return ((await graph("GET",wbPath(book)+"/worksheets?$select=name")).value||[]).map(w=>w.name)}
+function tabFor(tabs,iso){
+  const want=dayLabel(iso).slice(0,3);
+  return tabs.find(t=>t.toUpperCase().replace(/[^A-Z]/g,"").slice(0,3)===want);
+}
+const FIRST_ROW=4, LAST_ROW=200;
+async function nextEmptyRow(book,sheet){
+  const j=await graph("GET",wbPath(book)+wsPath(sheet)+`/range(address='A${FIRST_ROW}:W${LAST_ROW}')?$select=values`);
+  const i=(j.values||[]).findIndex(r=>r.every(c=>c===""||c===null));
+  if(i<0)throw new Error(`The ${sheet} tab has no empty rows left between ${FIRST_ROW} and ${LAST_ROW}.`);
+  return FIRST_ROW+i;
+}
+function cellVal(v){
+  if(v===""||v==null)return "";
+  if(/^-?\d+(\.\d+)?$/.test(v))return Number(v);
+  if(/^[=+\-@]/.test(v))return "'"+v;   // keep notes like "- WB" from turning into formulas
+  return v;
+}
+async function writeRow(book,sheet,row,vals){
+  const base=wbPath(book)+wsPath(sheet);
+  await graph("PATCH",base+`/range(address='A${row}:V${row}')`,{values:[vals.slice(0,22).map(cellVal)]});
+  await graph("PATCH",base+`/range(address='W${row}')`,{values:[[cellVal(vals[22])]]});   // Notes is merged W:X
+}
+function syncSummary(){
+  if(syncing)return "Sending to the workbook…";
+  const waiting=entries.filter(e=>e.dirty&&spConfigured(e.event)).length;
+  if(lastSyncErr)return (waiting?`${waiting} waiting · `:"")+friendlyErr(lastSyncErr);
+  if(waiting)return `${waiting} row${waiting>1?"s":""} waiting to send`;
+  const book=cfg.books[cfg.track];
+  return `All rows are in ${book.name||"the workbook"}`;
+}
+function friendlyErr(err){
+  if(err instanceof SignInNeeded)return err.message;
+  if(err instanceof TypeError)return "No signal. Rows will send when you're back online.";
+  if(err.status===401||err.status===403)return "Microsoft refused access. Sign in again in Settings with the work account that can edit this file.";
+  if(err.status===404)return "Couldn't find the workbook. Reconnect it in Settings.";
+  if(err.status===423||err.status===409||err.status===429||err.status>=500)return "The workbook is busy. Trying again shortly.";
+  return String(err.message||err);
+}
+async function syncNow(){
+  if(syncing){syncAgain=true;return}
+  if(!cfg.msClient||!cfg.msTenant){return}
+  syncing=true;render();
+  try{
+    let clears=store.get("tl2.clears",[]);
+    while(clears.length){
+      const c=clears[0],book=Object.values(cfg.books||{}).find(b=>b.itemId===c.item);
+      if(book)await writeRow(book,c.sheet,c.row,Array(24).fill(""));
+      clears.shift();store.set("tl2.clears",clears);
+    }
+    const tabCache={};
+    for(const e of entries){
+      if(!e.dirty)continue;
+      const book=cfg.books&&cfg.books[e.event];if(!book)continue;
+      let sheet,row;
+      if(e.xl&&e.xl.item===book.itemId){sheet=e.xl.sheet;row=e.xl.row}
+      else{
+        const tabs=tabCache[book.itemId]||(tabCache[book.itemId]=await listTabs(book));
+        sheet=tabFor(tabs,e.date);
+        if(!sheet)throw new Error(`${book.name||"The workbook"} has no tab for ${prettyDate(e.date).split(",")[0]}. Add one named ${dayLabel(e.date)}.`);
+        row=await nextEmptyRow(book,sheet);
+      }
+      await writeRow(book,sheet,row,excelRow(e).split("\t"));
+      e.xl={item:book.itemId,sheet,row};e.dirty=false;save();render();
+    }
+    lastSyncErr=null;lastSyncAt=Date.now();
+  }catch(err){lastSyncErr=err}
+  syncing=false;render();renderSp();
+  if(syncAgain){syncAgain=false;syncNow()}
+  else if(lastSyncErr&&!(lastSyncErr instanceof SignInNeeded)){clearTimeout(syncNow.t);syncNow.t=setTimeout(syncNow,60000)}
+}
+async function renderSp(){
+  const st=$("msStatus");if(!st)return;
+  $("msSignOut").hidden=true;
+  if(!cfg.msClient||!cfg.msTenant){st.className="status";st.textContent="Add the Client ID and Tenant ID first.";}
+  else{
+    let app=null;try{app=await msInit()}catch(e){}
+    const acc=app&&app.getActiveAccount();
+    st.className="status"+(acc?" ok":"");
+    st.textContent=acc?`Signed in as ${acc.username}`:"Not signed in.";
+    $("msSignOut").hidden=!acc;
+  }
+  const b=cfg.books&&cfg.books[$("s_track")?$("s_track").value:cfg.track];
+  $("bookStatus").className="status"+(b?" ok":"");
+  $("bookStatus").textContent=b?`Connected: ${b.name}${b.tabs?" · tabs "+b.tabs.join(", "):""}`:"No workbook connected for this track.";
+  if($("spState")){
+    $("spBox").hidden=!spConfigured(cfg.track);
+    $("spState").textContent=spConfigured(cfg.track)?syncSummary():"";
+  }
+}
+
+function liveStatus(){
+  if(LIVE.role==="view")return "Viewer · read only";
+  const m=window.liveMeta||{};
+  if(m.pending)return `${m.pending} reading${m.pending>1?"s":""} waiting for signal · uploads on its own`;
+  if(m.fromCache&&!navigator.onLine)return "No signal · new readings will upload later";
+  return "All readings uploaded to the team page";
+}
+/* ---------- wiring ---------- */
+document.querySelector(".add").onclick=e=>{const b=e.target.closest("[data-new]");if(b)openForm(b.dataset.new)};
+$("list").onclick=e=>{const r=e.target.closest(".row");if(r){const en=entries.find(x=>x.id===r.dataset.id);if(en)openForm(null,en)}};
+$("days").onclick=e=>{const c=e.target.closest(".chip");if(c){curDate=c.dataset.date;render()}};
+$("closeForm").onclick=closeForm;$("cancelForm").onclick=closeForm;
+$("saveEntry").onclick=()=>saveEntry(false);
+$("pullWx").onclick=()=>pullWeather(false);
+["f_uv","f_solar","f_cc","f_air"].forEach(id=>$(id).addEventListener("input",e=>e.target.classList.remove("auto")));
+$("notePicks").onclick=e=>{const b=e.target.closest(".pick");if(!b)return;const t=$("f_notes");t.value=t.value.trim()?t.value.trim()+" / "+b.dataset.n:b.dataset.n};
+$("form").addEventListener("input",()=>{if(editing&&!$("entryTools").hidden){readForm();$("msgPreview").textContent=message(editing)}});
+$("form").addEventListener("click",e=>{if(editing&&!$("entryTools").hidden&&e.target.closest(".pick")){setTimeout(()=>$("msgPreview").textContent=message(editing))}});
+const SENT_KEY={sms:"texted",wa:"wa"};
+function markSent(e,ch,on=true){
+  const k=SENT_KEY[ch],t=entries.find(x=>x.id===e.id);
+  if(t){if(on)t[k]=Date.now();else delete t[k];pushEntry(t);render()}
+  if(editing&&editing.id===e.id){if(on)editing[k]=t?t[k]:Date.now();else delete editing[k];showTexted()}
+}
+const markTexted=(e,on=true)=>markSent(e,"sms",on);
+function waHref(body){return "whatsapp://send?text="+encodeURIComponent(body)}
+function showTexted(){
+  const st=$("textedStatus");if(!st||!editing)return;
+  const tm=v=>esc(new Date(v).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}));
+  const parts=[];
+  if(editing.texted)parts.push(`Texted at ${tm(editing.texted)}<button type="button" class="linkbtn" data-un="sms">Unmark</button>`);
+  if(editing.wa)parts.push(`WhatsApp at ${tm(editing.wa)}<button type="button" class="linkbtn" data-un="wa">Unmark</button>`);
+  st.className="status"+(parts.length?" ok":"");
+  st.innerHTML=parts.length?parts.join(" &nbsp;·&nbsp; "):"Not sent yet.";
+}
+$("textedStatus").addEventListener("click",e=>{const b=e.target.closest("[data-un]");if(b)markSent(editing,b.dataset.un,false)});
+/* chooser after Save & Text */
+let pickEntry=null;
+function openPick(entry){pickEntry=entry;$("pickSms").className="btn note big";$("pickWa").className="btn note big";
+  $("pickSms").textContent="Messages";$("pickWa").textContent="WhatsApp";$("sendPick").hidden=false}
+function sendVia(ch,entry,btn){
+  const body=message(entry);
+  if(ch==="sms"){const href=smsHref(body);if(!href){toast("Add crew phone numbers in Settings to use Messages.");return}
+    markSent(entry,"sms");if(btn){btn.className="btn big done-mark";btn.textContent="Messages ✓"}location.href=href}
+  else{markSent(entry,"wa");if(btn){btn.className="btn big done-mark";btn.textContent="WhatsApp ✓"}location.href=waHref(body)}
+}
+$("pickSms").onclick=()=>pickEntry&&sendVia("sms",pickEntry,$("pickSms"));
+$("pickWa").onclick=()=>pickEntry&&sendVia("wa",pickEntry,$("pickWa"));
+$("pickDone").onclick=()=>{$("sendPick").hidden=true;pickEntry=null};
+$("sendPick").addEventListener("click",e=>{if(e.target.id==="sendPick"){$("sendPick").hidden=true;pickEntry=null}});
+$("waCrew").onclick=()=>{readForm();sendVia("wa",editing,null)};
+$("saveText").onclick=()=>saveEntry(true);
+$("textCrew").onclick=()=>{readForm();const href=smsHref(message(editing));
+  if(!href){toast("Add the crew's phone numbers in Settings first.");return}
+  markTexted(editing);location.href=href;};
+$("shareMsg").onclick=async()=>{readForm();const text=message(editing);
+  if(navigator.share){try{await navigator.share({text});markTexted(editing)}catch(_){}}else copyText(text,"Message copied")};
+$("copyMsg").onclick=()=>{readForm();copyText(message(editing),"Message copied")};
+$("delArea").addEventListener("click",e=>{
+  if(e.target.id==="delEntry"){$("delArea").innerHTML=`<span>Delete this entry?</span><button class="btn danger" type="button" id="delYes">Delete</button><button class="btn" type="button" id="delNo">Keep</button>`}
+  else if(e.target.id==="delYes"){const gone=entries.find(x=>x.id===editing.id);
+    if(gone&&gone.xl){const cl=store.get("tl2.clears",[]);cl.push(gone.xl);store.set("tl2.clears",cl)}
+    if(gone&&window.LIVE)LIVE.del(gone);
+    entries=entries.filter(x=>x.id!==editing.id);closeForm();render();toast("Entry deleted")}
+  else if(e.target.id==="delNo"){$("delArea").innerHTML=`<button class="btn danger" type="button" id="delEntry">Delete entry</button>`}
+});
+/* ---------- real .xlsx file (no library): a stored zip of SpreadsheetML parts ---------- */
+const HEAD=["Time","Run","Lane","Car","UV","Solar","CC","Air","Track","SL Location","SL KEG","SL Grade","10ft KEG","Push","60ft KEG","80ft KEG","125ft KEG","125ft Grade","Sticky","330ft KEG","330ft Grade","Nate","Notes",""];
+const CRC=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+function crc32(b){let c=0xFFFFFFFF;for(let i=0;i<b.length;i++)c=CRC[(c^b[i])&255]^(c>>>8);return(c^0xFFFFFFFF)>>>0}
+function zipStore(files){ // files: [[name, string]]
+  const enc=new TextEncoder(),parts=[],central=[];let off=0;
+  for(const [name,str] of files){
+    const nb=enc.encode(name),db=enc.encode(str),crc=crc32(db);
+    const lh=new DataView(new ArrayBuffer(30));
+    lh.setUint32(0,0x04034b50,true);lh.setUint16(4,20,true);lh.setUint16(6,0x0800,true);lh.setUint16(8,0,true);
+    lh.setUint32(14,crc,true);lh.setUint32(18,db.length,true);lh.setUint32(22,db.length,true);lh.setUint16(26,nb.length,true);
+    parts.push(new Uint8Array(lh.buffer),nb,db);
+    const ch=new DataView(new ArrayBuffer(46));
+    ch.setUint32(0,0x02014b50,true);ch.setUint16(4,20,true);ch.setUint16(6,20,true);ch.setUint16(8,0x0800,true);
+    ch.setUint32(16,crc,true);ch.setUint32(20,db.length,true);ch.setUint32(24,db.length,true);ch.setUint16(28,nb.length,true);ch.setUint32(42,off,true);
+    central.push(new Uint8Array(ch.buffer),nb);
+    off+=30+nb.length+db.length;
+  }
+  const csize=central.reduce((s,p)=>s+p.length,0);
+  const end=new DataView(new ArrayBuffer(22));
+  end.setUint32(0,0x06054b50,true);end.setUint16(8,files.length,true);end.setUint16(10,files.length,true);end.setUint32(12,csize,true);end.setUint32(16,off,true);
+  return new Blob([...parts,...central,new Uint8Array(end.buffer)],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+}
+function xesc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])).replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g,"")}
+function colName(i){return String.fromCharCode(65+i)}
+function cellXML(ref,v,style){
+  if(v===""||v==null)return `<c r="${ref}"${style?` s="${style}"`:""}/>`;
+  if(typeof v==="number")return `<c r="${ref}"${style?` s="${style}"`:""}><v>${v}</v></c>`;
+  return `<c r="${ref}" t="inlineStr"${style?` s="${style}"`:""}><is><t xml:space="preserve">${xesc(v)}</t></is></c>`;
+}
+function buildXlsx(entriesForDay,sheetName){
+  const rows=[HEAD.map((h,i)=>cellXML(colName(i)+"1",h,2)).join("")];
+  entriesForDay.forEach((e,ri)=>{
+    const r=ri+2, vals=excelRow(e).split("\t");
+    rows.push(vals.map((v,ci)=>{
+      const ref=colName(ci)+r;
+      if(ci===0&&e.time){const[hh,mm]=e.time.split(":").map(Number);return cellXML(ref,(hh*60+mm)/1440,1)}
+      if(/^-?\d+(\.\d+)?$/.test(v))return cellXML(ref,Number(v));
+      return cellXML(ref,v);
+    }).join(""));
+  });
+  const n=entriesForDay.length+1;
+  const merges=Array.from({length:n},(_,i)=>`<mergeCell ref="W${i+1}:X${i+1}"/>`).join("");
+  const sheet=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols><col min="1" max="1" width="10" customWidth="1"/><col min="23" max="23" width="40" customWidth="1"/></cols><sheetData>${rows.map((c,i)=>`<row r="${i+1}">${c}</row>`).join("")}</sheetData><mergeCells count="${n}">${merges}</mergeCells></worksheet>`;
+  const styles=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="h:mm AM/PM"/></numFmts><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
+  return zipStore([
+    ["[Content_Types].xml",`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`],
+    ["_rels/.rels",`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`],
+    ["xl/workbook.xml",`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${xesc(sheetName)}" sheetId="1" r:id="rId1"/></sheets></workbook>`],
+    ["xl/_rels/workbook.xml.rels",`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`],
+    ["xl/worksheets/sheet1.xml",sheet],
+    ["xl/styles.xml",styles]
+  ]);
+}
+function csvCell(v){v=String(v??"");return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}
+function exportData(){
+  const rows=dayEntries(curDate);
+  return {rows, tsv:rows.map(excelRow).join("\n"),
+    csv:"\ufeff"+rows.map(e=>excelRow(e).split("\t").map(csvCell).join(",")).join("\r\n")+"\r\n",
+    name:(cfg.track||"Track").replace(/[^A-Za-z0-9]+/g,"-")+"-"+dayLabel(curDate)+"-"+curDate+".xlsx"};
+}
+$("copyDay").onclick=()=>{const d=exportData();if(!d.rows.length)return;
+  $("expSummary").textContent=`${d.rows.length} row${d.rows.length>1?"s":""} from ${cfg.track}, ${prettyDate(curDate)}, in your sheet's column order (Time through Notes).`;
+  document.querySelectorAll(".expDay").forEach(b=>b.textContent=dayLabel(curDate));
+  $("expText").value=d.tsv;$("expCopyStatus").textContent="";$("expCopyStatus").className="status";
+  $("expShare").hidden=!(navigator.canShare&&navigator.canShare({files:[new File(["x"],"t.xlsx",{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"})]}));
+  renderSp();
+  $("export").hidden=false;$("export").scrollTop=0;document.body.style.overflow="hidden";};
+function sheetLine(rows){
+  // one line for cell Z1: columns split by | and rows by ~ (the day tab formulas use TEXTSPLIT on these)
+  return rows.map(e=>excelRow(e).split("\t").slice(0,23).map(v=>v.replace(/[|~\r\n\t]+/g,"/")).join("|")).join("~");
+}
+$("expLine").onclick=async()=>{const rows=dayEntries(curDate),line=sheetLine(rows),st=$("expLineStatus");let ok=false;
+  try{await navigator.clipboard.writeText(line);ok=true}catch(_){}
+  if(!ok){const t=$("expText");t.value=line;t.focus();t.setSelectionRange(0,line.length);try{ok=document.execCommand("copy")}catch(_){}}
+  st.className="status "+(ok?"ok":"err");
+  st.textContent=ok?`Copied ${rows.length} row${rows.length>1?"s":""}. Paste into Z1 of the ${dayLabel(curDate)} tab.`:"This phone blocked the copy. Press and hold the text box below, tap Select All, then Copy.";};
+function rowsHTML(rows){
+  // Excel (iPhone and desktop) pastes an HTML table cell by cell; empty <td>s keep blanks in place
+  const tr=rows.map(e=>"<tr>"+excelRow(e).split("\t").map(v=>"<td>"+esc(v)+"</td>").join("")+"</tr>").join("");
+  return '<html><head><meta charset="utf-8"></head><body><table><!--StartFragment-->'+tr+'<!--EndFragment--></table></body></html>';
+}
+$("expCopy").onclick=async()=>{const t=$("expText"),st=$("expCopyStatus");let ok=false,how="";
+  const rows=dayEntries(curDate);
+  try{ // must start before any await, or iPhone drops the tap permission
+    if(window.ClipboardItem&&navigator.clipboard&&navigator.clipboard.write){
+      await navigator.clipboard.write([new ClipboardItem({
+        "text/html":new Blob([rowsHTML(rows)],{type:"text/html"}),
+        "text/plain":new Blob([t.value],{type:"text/plain"})})]);
+      ok=true;how="table";
+    }
+  }catch(_){}
+  if(!ok){try{await navigator.clipboard.writeText(t.value);ok=true;how="text"}catch(_){}}
+  if(!ok){t.focus();t.setSelectionRange(0,t.value.length);try{ok=document.execCommand("copy");how="text"}catch(_){}}
+  st.className="status "+(ok?"ok":"err");
+  st.textContent=!ok?"This phone blocked the copy. Press and hold the rows below, tap Select All, then Copy."
+    :how==="table"?`Copied ${rows.length} row${rows.length>1?"s":""} as a table. In Excel, tap A4 once, tap it again, then tap Paste.`
+    :"Copied as plain text. If Excel won't paste it, use Share file below.";};
+$("expShare").onclick=async()=>{const d=exportData();
+  const f=new File([buildXlsx(d.rows,dayLabel(curDate))],d.name,{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+  try{await navigator.share({files:[f],title:d.name})}catch(err){if(err&&err.name!=="AbortError")toast("Couldn't open the share menu. Use Copy rows instead.")}};
+$("spSendDay").onclick=()=>{let n=0;dayEntries(curDate).forEach(e=>{if(!e.xl||e.dirty){e.dirty=true;n++}});save();
+  if(!n){toast("Every row for this day is already in the workbook.");return}
+  toast(`Sending ${n} row${n>1?"s":""}…`);syncNow().then(renderSp)};
+$("closeExport").onclick=$("doneExport").onclick=()=>{$("export").hidden=true;document.body.style.overflow=""};
+$("openExcel").onclick=async()=>{
+  const link=(cfg.xlLinks||{})[cfg.track];
+  const rows=dayEntries(curDate);
+  if(rows.length){try{await navigator.clipboard.writeText(sheetLine(rows))}catch(_){}}
+  if(!link){toast("Add this track's workbook link in Settings to open it from here.");return}
+  location.href="ms-excel:ofe|u|"+link;
+};
+function renderPhones(nums){
+  if(!nums.length)nums=[""];
+  $("phoneList").innerHTML=nums.map((n,i)=>`<div style="display:flex;gap:8px;align-items:center">
+    <input type="tel" inputmode="tel" autocomplete="off" id="s_phone${i}" aria-label="Phone number ${i+1}" value="${esc(n)}" placeholder="317-555-0101"
+      style="flex:1;min-width:0;min-height:50px;border:1px solid var(--line);border-radius:8px;background:var(--surface);padding:10px;font-size:20px;font-weight:600">
+    <button type="button" class="iconbtn" data-rm="${i}" aria-label="Remove number ${i+1}"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>`).join("");
+}
+function currentPhones(){return [...document.querySelectorAll("#phoneList input")].map(i=>i.value)}
+$("addPhone").onclick=()=>{const n=currentPhones();n.push("");renderPhones(n);const all=document.querySelectorAll("#phoneList input");all[all.length-1].focus()};
+$("phoneList").onclick=e=>{const b=e.target.closest("[data-rm]");if(!b)return;const n=currentPhones();n.splice(+b.dataset.rm,1);renderPhones(n)};
+/* ---------- graphs ---------- */
+const G_PANELS=[
+  {title:"Temperature",unit:"°F",series:[{k:"air",name:"Air",c:"--s1"},{k:"track",name:"Track",c:"--s2"}]},
+  {title:"Solar",unit:"W/m²",series:[{k:"solar",name:"Solar",c:"--s4"}]},
+  {title:"UV index",unit:"",series:[{k:"uv",name:"UV",c:"--s7"}]},
+  {title:"KEG",unit:"",lane:true,series:[{k:"slKeg",name:"SL",c:"--s1"},{k:"k10",name:"10ft",c:"--s2"},{k:"k60",name:"60ft",c:"--s3"},
+    {k:"k80",name:"80ft",c:"--s4"},{k:"k125",name:"125ft",c:"--s5"},{k:"k330",name:"330ft",c:"--s6"}]},
+  {title:"Sticky",unit:"",lane:true,series:[{k:"slSticky",name:"SL Sticky",c:"--s1"},{k:"sticky",name:"Sticky",c:"--s8"}]},
+  {title:"Push (10 ft)",unit:"",lane:true,series:[{k:"push",name:"Push",c:"--s3"}]},
+  {title:"Nate",unit:"",lane:true,series:[{k:"nate",name:"Nate",c:"--s6"}]},
+];
+let gLane="all",gBuilt=[],gEvents=[],gX0=0,gX1=1;
+const G={W:360,L:40,R:58,T:8,B:20,H:150};
+const gMin=t=>{const[h,m]=(t||"0:0").split(":").map(Number);return h*60+m};
+const gNum=v=>{if(v===""||v==null)return null;const n=Number(v);return isFinite(n)?n:null};
+const gx=m=>G.L+(m-gX0)/(gX1-gX0)*(G.W-G.L-G.R);
+const gcss=n=>getComputedStyle($("graphs")).getPropertyValue(n).trim();
+const SVGNS="http://www.w3.org/2000/svg";
+function gel(n,a,p){const x=document.createElementNS(SVGNS,n);for(const k in a)x.setAttribute(k,a[k]);if(p)p.appendChild(x);return x}
+function gTicks(lo,hi,n=3){const span=hi-lo||1,s0=span/n,mag=10**Math.floor(Math.log10(s0)),st=[1,2,2.5,5,10].map(s=>s*mag).find(s=>s>=s0);
+  const a=Math.floor(lo/st)*st,b=Math.ceil(hi/st)*st,t=[];for(let v=a;v<=b+1e-9;v+=st)t.push(+v.toFixed(6));return t}
+function gFmt(m){let h=Math.floor(m/60);const mm=String(Math.round(m%60)).padStart(2,"0"),ap=h>=12?"PM":"AM";h=h%12||12;return `${h}:${mm} ${ap}`}
+function buildGraphs(){
+  const day=dayEntries(curDate),host=$("gPanels");host.innerHTML="";gBuilt=[];
+  $("gSub").textContent=`${cfg.track} · ${prettyDate(curDate)}`;
+  $("gReadout").innerHTML='<div class="help">Touch or drag across a chart to see the readings at that time.</div>';
+  if(!day.length){host.innerHTML='<div class="empty"><strong>No readings for this day yet</strong>Log a few and the trends show up here.</div>';return}
+  const mins=day.map(e=>gMin(e.time));gX0=Math.floor(Math.min(...mins)/60)*60;gX1=Math.max(gX0+60,Math.ceil(Math.max(...mins)/60)*60);
+  gEvents=day.filter(e=>e.type==="work"&&(e.work==="Scrape"||e.work==="Spray")).map(e=>({m:gMin(e.time),w:e.work,notes:e.notes||""}));
+  for(const p of G_PANELS){
+    const series=p.series.map(s=>({...s,col:gcss(s.c),pts:day.filter(e=>!p.lane||gLane==="all"||e.lane===gLane)
+      .map(e=>({m:gMin(e.time),v:gNum(e[s.k])})).filter(d=>d.v!=null)}));
+    const vals=series.flatMap(s=>s.pts.map(d=>d.v));
+    const div=document.createElement("section");div.className="g-panel";
+    div.innerHTML=`<div class="g-ptitle"><h3>${p.title}</h3><span class="u">${p.unit}${p.lane&&gLane!=="all"?(p.unit?" · ":"")+(gLane==="L"?"Left lane":"Right lane"):""}</span></div>`+
+      (series.length>1?`<div class="g-legend">${series.map(s=>`<span><i style="background:${s.col}"></i>${s.name}</span>`).join("")}</div>`:"");
+    host.appendChild(div);
+    if(!vals.length){const n=document.createElement("div");n.className="g-none";n.textContent="No readings yet.";div.appendChild(n);continue}
+    let lo=Math.min(...vals),hi=Math.max(...vals);const pad=(hi-lo)*.08||1;
+    const ticks=gTicks(lo>=0&&lo-pad<0?0:lo-pad,hi+pad).filter(t=>!(lo>=0&&t<0));lo=ticks[0];hi=ticks[ticks.length-1];
+    const ys=v=>G.T+(1-(v-lo)/(hi-lo||1))*(G.H-G.T-G.B);
+    const svg=gel("svg",{viewBox:`0 0 ${G.W} ${G.H}`,role:"img","aria-label":`${p.title} through the day`});div.appendChild(svg);
+    for(const t of ticks){gel("line",{x1:G.L,x2:G.W-G.R,y1:ys(t),y2:ys(t),stroke:gcss("--grid")},svg);
+      gel("text",{x:G.L-6,y:ys(t)+4,"text-anchor":"end"},svg).textContent=t>=1000?t.toLocaleString():t}
+    gel("line",{x1:G.L,x2:G.W-G.R,y1:G.H-G.B,y2:G.H-G.B,stroke:gcss("--axis")},svg);
+    for(let m=gX0;m<=gX1;m+=60){const hr=Math.floor(m/60),h12=hr%12||12;
+      gel("line",{x1:gx(m),x2:gx(m),y1:G.H-G.B,y2:G.H-G.B+3,stroke:gcss("--axis")},svg);
+      gel("text",{x:gx(m),y:G.H-5,"text-anchor":"middle"},svg).textContent=(m===gX0||m===gX1)?h12+(hr<12?"am":"pm"):String(h12)}
+    for(const ev of gEvents)gel("line",{x1:gx(ev.m),x2:gx(ev.m),y1:G.T,y2:G.H-G.B,stroke:"#0B0D0F","stroke-opacity":ev.w==="Scrape"?.55:.4,"stroke-width":1.5,"stroke-dasharray":ev.w==="Spray"?"4 3":""},svg);
+    const ends=[];
+    for(const s of series){if(!s.pts.length)continue;
+      gel("path",{d:s.pts.map((d,i)=>(i?"L":"M")+gx(d.m).toFixed(1)+" "+ys(d.v).toFixed(1)).join(""),fill:"none",stroke:s.col,"stroke-width":2,"stroke-linejoin":"round","stroke-linecap":"round"},svg);
+      for(const d of s.pts)gel("circle",{cx:gx(d.m),cy:ys(d.v),r:3,fill:s.col,stroke:"#fff","stroke-width":1.5},svg);
+      const last=s.pts[s.pts.length-1];ends.push({s,y:ys(last.v)})}
+    ends.sort((a,b)=>a.y-b.y);for(let i=1;i<ends.length;i++)if(ends[i].y-ends[i-1].y<12)ends[i].y=ends[i-1].y+12;
+    const over=ends.length?ends[ends.length-1].y-(G.H-G.B):0;if(over>0)ends.forEach(e=>e.y-=over);
+    for(const e of ends){gel("circle",{cx:G.W-G.R+2,cy:e.y,r:2.5,fill:e.s.col},svg);gel("text",{x:G.W-G.R+6,y:e.y+4,class:"lbl"},svg).textContent=e.s.name}
+    const cross=gel("line",{x1:0,x2:0,y1:G.T,y2:G.H-G.B,stroke:"#0B0D0F",visibility:"hidden"},svg);
+    const dots=series.map(s=>gel("circle",{r:5,fill:s.col,stroke:"#fff","stroke-width":2,visibility:"hidden"},svg));
+    gBuilt.push({series,ys,cross,dots});
+    const move=ev=>{const r=svg.getBoundingClientRect(),x=(ev.clientX-r.left)/r.width*G.W,m=gX0+(x-G.L)/(G.W-G.L-G.R)*(gX1-gX0);gHover(Math.max(gX0,Math.min(gX1,m)))};
+    svg.addEventListener("pointermove",move);svg.addEventListener("pointerdown",move);
+  }
+}
+function gHover(m){
+  const near=arr=>{let b=null;for(const d of arr){const g=Math.abs(d.m-m);if(g<=25&&(!b||g<Math.abs(b.m-m)))b=d}return b};
+  const out=[];
+  for(const b of gBuilt){b.cross.setAttribute("x1",gx(m));b.cross.setAttribute("x2",gx(m));b.cross.setAttribute("visibility","visible");
+    b.series.forEach((s,i)=>{const d=near(s.pts),dot=b.dots[i];
+      if(d){dot.setAttribute("cx",gx(d.m));dot.setAttribute("cy",b.ys(d.v));dot.setAttribute("visibility","visible");out.push(`<span><i style="background:${s.col}"></i>${esc(s.name)} <b>${d.v.toLocaleString()}</b></span>`)}
+      else dot.setAttribute("visibility","hidden")})}
+  const ev=gEvents.filter(e=>Math.abs(e.m-m)<=10).map(e=>`<span><b>${e.w}</b> ${gFmt(e.m)}${e.notes?" · "+esc(e.notes):""}</span>`);
+  $("gReadout").innerHTML=`<div class="t">${gFmt(m)}</div><div class="vals">${out.join("")||'<span class="help">No readings within 25 min</span>'}${ev.join("")}</div>`;
+}
+$("openGraphs").onclick=()=>{$("graphs").hidden=false;$("graphs").scrollTop=0;document.body.style.overflow="hidden";buildGraphs()};
+$("closeGraphs").onclick=()=>{$("graphs").hidden=true;document.body.style.overflow=""};
+document.querySelector(".g-filters").addEventListener("click",e=>{const b=e.target.closest("[data-glane]");if(!b)return;gLane=b.dataset.glane;
+  document.querySelectorAll("[data-glane]").forEach(c=>c.setAttribute("aria-pressed",c===b?"true":"false"));buildGraphs()});
+$("openSettings").onclick=openSettings;
+$("closeSettings").onclick=()=>{readSettings();$("settings").hidden=true;document.body.style.overflow="";render()};
+$("saveSettings").onclick=$("closeSettings").onclick;
+$("s_track").onchange=()=>{setCoordFields();$("s_xlLink").value=(cfg.xlLinks||{})[$("s_track").value]||"";renderSp()};
+$("msSignIn").onclick=async()=>{readSettings();msalApp=null;
+  if(!cfg.msClient||!cfg.msTenant){toast("Add the Client ID and Tenant ID first.");return}
+  try{await msToken(true);renderSp();toast("Signed in")}catch(e){$("msStatus").className="status err";$("msStatus").textContent=friendlyErr(e)}};
+$("msSignOut").onclick=async()=>{const app=await msInit();const acc=app&&app.getActiveAccount();
+  if(app&&acc){try{await app.clearCache({account:acc})}catch(_){};app.setActiveAccount(null)}renderSp();toast("Signed out")};
+$("bookConnect").onclick=async()=>{readSettings();const link=$("s_book").value.trim(),st=$("bookStatus");
+  if(!/^https:\/\//.test(link)){st.className="status err";st.textContent="Paste the full SharePoint link (it starts with https://).";return}
+  st.className="status";st.textContent="Connecting…";
+  try{
+    const it=await graph("GET","/shares/"+shareId(link)+"/driveItem?$select=id,name,parentReference");
+    const book={driveId:it.parentReference.driveId,itemId:it.id,name:it.name};
+    book.tabs=await listTabs(book);
+    cfg.books=cfg.books||{};cfg.books[cfg.track]=book;store.set("tl2.cfg",cfg);
+    $("s_book").value="";renderSp();toast("Workbook connected");
+  }catch(e){st.className="status err";st.textContent=friendlyErr(e)}};
+$("useLoc").onclick=()=>{
+  if(!navigator.geolocation){toast("This phone didn't share a location.");return}
+  navigator.geolocation.getCurrentPosition(p=>{$("s_lat").value=p.coords.latitude.toFixed(4);$("s_lon").value=p.coords.longitude.toFixed(4);toast("Location set for "+$("s_track").value)},
+    ()=>toast("Location is off. Allow it for Safari in iPhone Settings, or type the numbers in."),{enableHighAccuracy:true,timeout:15000});
+};
+$("testWx").onclick=async()=>{readSettings();const out=$("testOut");out.hidden=false;out.textContent="Asking Tomorrow.io…";
+  try{const w=await getWeather();out.textContent=`${cfg.track} right now\nUV ${w.uv}\nSolar ${w.solarOk?w.solar:"not available on this key"}\nCloud cover ${w.cc}%\nAir ${w.air}°F`}
+  catch(err){out.textContent=err instanceof TypeError?"Couldn't reach Tomorrow.io. Check your signal and try again.":"Tomorrow.io said: "+(err.message||err)}};
+$("copyBackup").onclick=()=>copyText(JSON.stringify({v:1,entries,cfg:Object.assign({},cfg,{key:""})}),"Backup copied (your API key is left out)");
+$("showRestore").onclick=()=>$("restoreArea").hidden=false;
+$("doRestore").onclick=()=>{try{const j=JSON.parse($("s_restore").value);if(!Array.isArray(j.entries))throw 0;
+  const ids=new Set(entries.map(e=>e.id));j.entries.forEach(e=>{if(!ids.has(e.id))entries.push(e)});save();toast("Backup restored");$("restoreArea").hidden=true;render()}
+  catch(e){toast("That doesn't look like a Track Log backup.")}};
+
+if("serviceWorker" in navigator&&location.protocol==="https:")navigator.serviceWorker.register("sw.js").catch(()=>{});
+if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});
+render();
+window.addEventListener("online",()=>syncNow());
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")syncNow()});
+if(!cfg.key)setTimeout(()=>toast("Open Settings to add your Tomorrow.io key and crew numbers."),600);
+</script>
+<script type="module">
+import { login, logout, watchRole, watchEntries, saveEntry, deleteEntry, eventIdFor } from "../fb.js";
+const LIVE = window.LIVE = {
+  role: null,
+  save(e){ const c = { ...e }; delete c.dirty; delete c.xl; delete c._pending;
+    saveEntry(c).catch(err => toast(err && err.code === "permission-denied" ? "This login can't save. Sign in with the Edit password." : "Couldn't save to the team database: " + (err.message || err))); },
+  del(e){ deleteEntry(e).catch(err => toast("Couldn't delete from the team database: " + (err.message || err))); }
+};
+let unsub = null, subId = null;
+window.liveResub = function(){
+  if(!LIVE.role) return;
+  const id = eventIdFor(cfg.track, curDate);
+  if(id === subId) return;
+  subId = id; unsub && unsub(); entries = []; window.liveMeta = { fromCache: true };
+  unsub = watchEntries(id, (list, meta) => { entries = list; window.liveMeta = meta; render(); },
+    err => { toast("Lost the connection to the team database. Sign in again if this keeps happening."); console.error(err); });
+};
+watchRole(r => {
+  LIVE.role = r; document.body.dataset.role = r || "out";
+  $("loginScreen").hidden = !!r;
+  $("acctStatus").textContent = r === "edit" ? "Signed in with the Edit password. You can log and change readings." : r === "view" ? "Signed in with the View password. Read only." : "";
+  if(!r){ unsub && unsub(); unsub = null; subId = null; entries = []; }
+  render();
+});
+$("loginForm").addEventListener("submit", async ev => {
+  ev.preventDefault(); $("loginErr").textContent = ""; $("loginBtn").disabled = true;
+  try { await login($("loginPw").value); $("loginPw").value = ""; }
+  catch(e){ $("loginErr").textContent = e.code === "bad-password" ? "That password didn't match. Check it and try again." : "Couldn't reach the server. Signing in the first time needs a signal."; }
+  $("loginBtn").disabled = false;
+});
+$("signOutBtn").onclick = async () => { await logout(); $("settings").hidden = true; document.body.style.overflow = ""; };
+$("importOld").onclick = () => {
+  let old = []; try { old = JSON.parse(localStorage.getItem("tl.entries") || "[]"); } catch(_) {}
+  const ok = old.filter(e => e && e.id && e.event && e.date);
+  if(!ok.length){ $("importStatus").textContent = "No readings from the old app on this phone."; return; }
+  ok.forEach(e => LIVE.save(e));
+  $("importStatus").className = "status ok";
+  $("importStatus").textContent = `Sent ${ok.length} reading${ok.length > 1 ? "s" : ""} to the team database.`;
+};
+window.addEventListener("online", () => render()); window.addEventListener("offline", () => render());
+</script>
+</body>
+</html>
