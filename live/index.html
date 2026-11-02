@@ -1217,7 +1217,7 @@ function saveRunHistory(e){
     run: e.run, lane: e.lane, car: e.car, et: e.et, mph: e.mph, notes: e.notes };
   delete run.min; saveHistoryRun(run).catch(() => {});
 };
-let unsub = null, subId = null;
+let unsub = null, subId = null; const moved = new Set();
 window.liveResub = function(){
   if(!LIVE.role) return;
   const id = eventIdFor(cfg.track, curDate), old = legacyEventIdFor(cfg.track, curDate);
@@ -1226,6 +1226,8 @@ window.liveResub = function(){
   // the race week, plus the older month-based id so earlier readings can still be edited or deleted
   const parts = { [id]: [], [old]: [] }, metas = {};
   const merge = () => { entries = [...parts[id], ...parts[old]];
+    // readings an older copy of the app filed by month move into their race week (Edit login only)
+    if(LIVE.role === "edit") for(const e of parts[old]) if(!moved.has(e.id) && eventIdFor(e.event, e.date) === id){ moved.add(e.id); LIVE.save(e); }
     window.liveMeta = { pending: Object.values(metas).reduce((s, m) => s + (m.pending || 0), 0), fromCache: Object.values(metas).some(m => m.fromCache) }; render(); };
   const onErr = err => { toast("Lost the connection to the team database. Sign in again if this keeps happening."); console.error(err); };
   const u1 = watchEntries(id, (list, meta) => { parts[id] = list; metas[id] = meta; merge(); }, onErr);

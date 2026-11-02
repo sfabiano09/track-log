@@ -228,7 +228,7 @@ tr.pending td.c-time::after{content:" ⟳";color:var(--warn)}
 <div class="toast" id="toast" hidden role="status"></div>
 
 <script type="module">
-import { login, logout, watchRole, watchEvents, watchEntries, raceLabel, saveMany, saveHistory, watchHistory } from "../fb.js";
+import { login, logout, watchRole, watchEvents, watchEntries, raceLabel, saveMany, saveHistory, watchHistory, eventIdFor } from "../fb.js";
 let runHistory = [], unsubHistory = null;
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -264,7 +264,7 @@ $("signOut").onclick = () => logout();
 function startEvents() {
   if (unsubEvents) return;
   unsubEvents = watchEvents((list, meta) => {
-    events = list;
+    events = groupRaces(list);
     setLive(!meta.fromCache);
     const wanted = (location.hash.slice(1) || "").split(".")[0];
     // a race running today opens first, then the one in the link, then the newest
@@ -272,6 +272,22 @@ function startEvents() {
       curEvent = (events.find(e => (e.dates || []).includes(todayISO())) || events.find(e => e.id === wanted) || events[0] || {}).id || null;
     renderRaces(); openEvent(curEvent);
   }, err => { setLive(false, "Can't load races"); console.error(err); });
+}
+// Readings saved by an older copy of Track Log Live were grouped by month ("las-vegas-2026-11").
+// Fold those into their race week so every reading shows under its race.
+const tsOf = v => v && v.toMillis ? v.toMillis() : +v || 0;
+function groupRaces(list) {
+  const races = new Map();
+  const add = (id, track, dates, part, ts) => {
+    const r = races.get(id) || { id, track, dates: new Set(), parts: new Set(), ts: 0 };
+    dates.forEach(d => r.dates.add(d)); r.parts.add(part); r.ts = Math.max(r.ts, ts); races.set(id, r);
+  };
+  for (const e of list) {
+    const legacy = /-\d{4}-\d{2}$/.test(e.id) && (e.dates || []).length;
+    if (!legacy) add(e.id, e.track, e.dates || [], e.id, tsOf(e.updatedAt));
+    else for (const d of e.dates) add(eventIdFor(e.track, d), e.track, [d], e.id, tsOf(e.updatedAt));
+  }
+  return [...races.values()].sort((a, b) => b.ts - a.ts).map(r => ({ ...r, dates: [...r.dates].sort(), parts: [...r.parts].sort() }));
 }
 function setLive(on, txt) { $("live").classList.toggle("on", on); $("liveTxt").textContent = txt || (on ? "Live" : "Offline"); }
 function renderRaces() {
@@ -281,15 +297,25 @@ function renderRaces() {
 }
 $("race").onchange = () => { curEvent = $("race").value; curDate = null; openEvent(curEvent); };
 function openEvent(id) {
-  if (openEvent.id === id) { renderAll(); return; }
-  openEvent.id = id; unsubEntries && unsubEntries(); unsubEntries = null; entries = []; seen = new Set(); firstLoad = true;
+  const race = events.find(e => e.id === id), parts = race ? race.parts : [], key = id + "|" + parts.join(",");
+  if (openEvent.key === key) { renderAll(); return; }
+  const sameRace = openEvent.id === id;
+  openEvent.id = id; openEvent.key = key; unsubEntries && unsubEntries(); unsubEntries = null;
+  if (!sameRace) { entries = []; seen = new Set(); firstLoad = true; }
   if (!id) { renderAll(); return; }
-  unsubEntries = watchEntries(id, (list, meta) => {
+  const got = {}, metas = {};
+  const merge = () => {
+    const byId = new Map();
+    for (const p of parts) for (const e of got[p] || []) if (p === id || eventIdFor(e.event, e.date) === id) byId.set(e.id, e);
+    const list = [...byId.values()];
     const fresh = firstLoad ? new Set() : new Set(list.filter(e => !seen.has(e.id)).map(e => e.id));
     list.forEach(e => seen.add(e.id)); firstLoad = false;
     entries = list; renderAll(fresh);
-    setLive(!meta.fromCache);
-  }, err => { setLive(false, "Can't load readings"); console.error(err); });
+    setLive(!Object.values(metas).some(m => m.fromCache));
+  };
+  const subs = parts.map(p => watchEntries(p, (list, meta) => { got[p] = list; metas[p] = meta; merge(); },
+    err => { setLive(false, "Can't load readings"); console.error(err); }));
+  unsubEntries = () => subs.forEach(u => u());
 }
 function eventDates() {
   const ev = events.find(e => e.id === curEvent) || {};
