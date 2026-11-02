@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Track Log · Log view demo</title>
+<meta name="color-scheme" content="light only">
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Layout: "Right now" bar, then a race-day log that reads like a notebook. Track work becomes dividers; runs stand out; each reading carries a KEG strip running down the track. */
+:root{
+  --bg:#EEF0F2; --surface:#FFFFFF; --ink:#0B0D0F; --muted:#3E454C; --soft:#6B737A; --line:#AEB6BD; --hair:#D9DDE1;
+  --note:#FFD43B; --note-ink:#1A1C1E; --up:#1E7F4E; --down:#B42318;
+  --k1:#cde2fb; --k2:#9ec5f4; --k3:#6da7ec; --k4:#3987e5; --k5:#256abf; --k6:#184f95;   /* KEG shade: low -> high for that spot today */
+  --display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.4 var(--body);font-variant-numeric:tabular-nums;
+  padding:env(safe-area-inset-top,0) max(16px,env(safe-area-inset-right,0)) calc(32px + env(safe-area-inset-bottom,0)) max(16px,env(safe-area-inset-left,0))}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:3px solid var(--note);outline-offset:2px}
+.wrap{max-width:860px;margin:0 auto}
+.label{font:600 12px/1 var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+header{padding-block:14px 6px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+h1{margin:0;font:700 28px/1 var(--display)}
+.demo{background:var(--note);color:var(--note-ink);font:700 11px/1 var(--display);letter-spacing:.08em;padding:3px 6px;border-radius:4px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:6px 0 12px}
+.tab{border:0;background:none;padding:10px 14px;font:700 17px/1 var(--display);letter-spacing:.04em;color:var(--muted);border-bottom:3px solid transparent;margin-bottom:-1px}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink)}
+.tab:disabled{cursor:default}
+
+/* replay clock (demo only) */
+.replay{background:var(--surface);border:1px dashed var(--line);border-radius:10px;padding:10px 12px;margin-bottom:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.replay input{flex:1;min-width:180px;accent-color:var(--ink)}
+.replay b{font:700 20px/1 var(--display);min-width:80px}
+
+/* right now */
+.now{background:var(--ink);color:#fff;border-radius:14px;padding:12px 14px 14px;margin-bottom:12px}
+@media (min-width:700px){.now{position:sticky;top:env(safe-area-inset-top,0);z-index:5}}
+.now .label{color:#C9CED3}
+.now-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-top:8px}
+.stat{min-width:0}
+.stat .k{font:600 11px/1 var(--display);letter-spacing:.08em;text-transform:uppercase;color:#AEB4BA}
+.stat .v{font:700 30px/1.05 var(--display)}
+.stat .d{font-size:12px;color:#C9CED3;white-space:nowrap}
+.stat .d.up{color:#7BE0A7} .stat .d.down{color:#FF9C92}
+.now-lines{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.nl{background:rgba(255,255,255,.08);border-radius:10px;padding:8px 10px;min-width:0}
+.nl .what{font:700 18px/1.15 var(--display);overflow-wrap:anywhere}
+.nl .ago{font:700 13px/1 var(--display);letter-spacing:.06em;text-transform:uppercase;color:var(--note)}
+.nl .ago.old{color:#C9CED3}
+.nl .sub{font-size:13px;color:#C9CED3;overflow-wrap:anywhere}
+
+/* controls */
+.controls{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:8px 14px;font:700 15px/1 var(--display);letter-spacing:.04em;min-height:38px}
+.chip[aria-pressed="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.spacer{flex:1}
+
+/* the log */
+.log{display:flex;flex-direction:column;gap:6px}
+.e{background:var(--surface);border:1px solid var(--hair);border-radius:10px;padding:8px 10px;display:grid;grid-template-columns:62px 1fr;gap:10px}
+.e .t{font:700 17px/1.1 var(--display)}
+.e .ty{display:block;font:600 11px/1 var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--soft);margin-top:3px}
+.e .body{min-width:0}
+.e .head{font:700 18px/1.2 var(--display);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.e .meta{font-size:13px;color:var(--muted);overflow-wrap:anywhere}
+.e .meta b{font-weight:600;color:var(--ink)}
+.e .note{font-size:14px;color:var(--muted);margin-top:3px;overflow-wrap:anywhere}
+.e.weather{background:transparent;border-color:transparent;padding-block:4px}
+.e.weather .head{font-size:15px;color:var(--muted)}
+.e.run{border:2px solid var(--ink)}
+.result{font:700 26px/1 var(--display);margin-left:auto;white-space:nowrap}
+.tag{display:inline-block;border-radius:5px;padding:2px 7px;font:700 15px/1.2 var(--display);background:var(--ink);color:#fff}
+.lane{font:700 15px/1.2 var(--display);padding:1px 6px;border-radius:5px;border:1.5px solid var(--ink)}
+.lane.R{color:#C00;border-color:#C00}
+.car{border-radius:5px;padding:2px 8px;font:700 16px/1.2 var(--display);border:1px solid rgba(0,0,0,.15)}
+.car-austin{background:#0032FF;color:#fff}
+.car-pm{background:#92D050}
+.car-matt{background:#CDEBF8}
+.car-other{background:#F2F2F2}
+
+/* track work dividers */
+.work{display:flex;align-items:center;gap:10px;padding:6px 2px}
+.work::before,.work::after{content:"";height:2px;background:var(--wcol,#888);flex:1;border-radius:2px}
+.work::before{flex:0 0 14px}
+.work .wt{font:700 15px/1 var(--display);white-space:nowrap}
+.work .wl{font:700 14px/1 var(--display);letter-spacing:.06em;text-transform:uppercase;padding:4px 8px;border-radius:5px;background:var(--wbg,#eee);color:var(--wink,#000);white-space:nowrap}
+.work .wn{font-size:14px;color:var(--muted);overflow-wrap:anywhere;flex:0 1 auto;min-width:0}
+.work.scrape{--wcol:#E07A45;--wbg:#F6C6AD}
+.work.spray{--wcol:#C9B400;--wbg:#FFFF99}
+.work.prep{--wcol:#E0A400;--wbg:#FFC000}
+.work.delay{--wcol:#C00;--wbg:#FFE3E3;--wink:#B00}
+
+/* KEG strip: six stations down the track */
+.strip{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:3px;margin-top:6px;max-width:560px}
+.st{border-radius:5px;padding:4px 2px 3px;text-align:center;min-width:0}
+.st .n{font:700 15px/1.05 var(--display);overflow:hidden;text-overflow:clip}
+.st .s{font:600 10px/1 var(--display);letter-spacing:.06em;text-transform:uppercase;opacity:.85}
+.st .dl{font-size:10.5px;line-height:1.1;white-space:nowrap}
+.st.empty{background:repeating-linear-gradient(135deg,#F3F4F5 0 5px,#E9EBED 5px 10px);color:#8A9197}
+.st.txt{background:#F2F2F2}
+.dark{color:#fff}
+.extras{display:flex;gap:4px 14px;flex-wrap:wrap;font-size:13px;margin-top:5px;color:var(--muted)}
+.extras b{color:var(--ink);font-weight:600}
+.up{color:var(--up)} .down{color:var(--down)}
+.dark .up{color:#B9F3CF} .dark .down{color:#FFC2BB}
+.key{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);margin:2px 0 10px;flex-wrap:wrap}
+.key .ramp{display:inline-flex;border-radius:4px;overflow:hidden}
+.key .ramp i{width:22px;height:12px}
+.empty-log{padding:24px;text-align:center;color:var(--muted)}
+@media (max-width:560px){
+  .now-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .now-lines{grid-template-columns:1fr}
+  .stat .v{font-size:26px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header><h1>St. Louis · Saturday</h1><span class="demo">DEMO</span></header>
+<div class="tabs" role="tablist">
+  <button class="tab" role="tab" aria-selected="true">Log</button>
+  <button class="tab" role="tab" aria-selected="false" disabled title="Same as the team page today">Sheet</button>
+  <button class="tab" role="tab" aria-selected="false" disabled title="Same as the team page today">Graphs</button>
+</div>
+
+<div class="replay">
+  <span class="label">Demo clock</span><b id="clk"></b>
+  <input type="range" id="clock" aria-label="Replay the day" step="1">
+  <span class="label" style="text-transform:none;letter-spacing:0;font-family:var(--body);font-size:13px">Drag to replay the day</span>
+</div>
+
+<section class="now" aria-label="Right now">
+  <div class="label">Right now</div>
+  <div class="now-grid" id="nowStats"></div>
+  <div class="now-lines" id="nowLines"></div>
+</section>
+
+<div class="controls">
+  <span class="label">Lane</span>
+  <button class="chip" data-lane="all" aria-pressed="true">Both</button>
+  <button class="chip" data-lane="L" aria-pressed="false">Left</button>
+  <button class="chip" data-lane="R" aria-pressed="false">Right</button>
+  <span class="spacer"></span>
+  <button class="chip" id="order" aria-pressed="false">Newest first</button>
+</div>
+<div class="key"><span>KEG shading, for each spot on the track:</span><span>lower</span><span class="ramp"><i style="background:var(--k1)"></i><i style="background:var(--k2)"></i><i style="background:var(--k3)"></i><i style="background:var(--k4)"></i><i style="background:var(--k5)"></i><i style="background:var(--k6)"></i></span><span>higher than today's other readings</span></div>
+
+<div class="log" id="log"></div>
+</div>
+
+<script>
+"use strict";
+const DATA=[{"time": "08:40", "notes": "1320' - 40'", "type": "work", "work": "Spray"}, {"time": "09:00", "uv": 0.8, "solar": 823, "cc": 0, "air": 57, "track": 76, "type": "weather"}, {"time": "10:00", "uv": 2.7, "solar": 942, "cc": 0, "air": 60, "track": 85, "k125": 3450, "notes": "Firm, lacks tack", "type": "track"}, {"time": "11:00", "uv": 4.5, "solar": 993, "cc": 0, "air": 64, "track": 96, "type": "weather"}, {"time": "11:18", "run": "Q3", "lane": "L", "car": "PM", "uv": 5.4, "solar": 967, "cc": 0, "air": 66, "track": 98, "slKeg": 3050, "k10": 3250, "push": 7, "k60": 3230, "k80": 3200, "notes": "5.72, 249mph", "type": "run"}, {"time": "11:42", "lane": "L", "solar": 977, "cc": 0, "air": 68, "track": 102, "slKeg": 2750, "k10": 2920, "push": 4.5, "k60": 3120, "k80": 3040, "notes": "5.605et", "type": "track"}, {"time": "11:45", "notes": "Hand spray for FSS", "type": "work", "work": "Prep"}, {"time": "11:48", "run": "Q3", "lane": "R", "car": "FSS", "uv": 6.5, "solar": 980, "cc": 0, "air": 67, "track": 102, "k10": 3080, "notes": "Carl Tasca", "type": "run"}, {"time": "12:02", "notes": "85' - WB / Kenny RL", "type": "work", "work": "Scrape"}, {"time": "12:15", "notes": "660' - WB", "type": "work", "work": "Spray"}, {"time": "12:18", "lane": "L", "uv": 7.1, "solar": 1011, "air": 70, "track": 104, "slKeg": 3030, "k10": 3080, "push": 6, "k60": 3100, "k125": 3380, "sticky": 150, "k330": 3410, "nate": 8, "type": "track"}, {"time": "12:44", "lane": "L", "track": 106, "slKeg": 3000, "k10": 3100, "k60": 3100, "type": "track"}, {"time": "12:50", "notes": "Drag to 1000'", "type": "work", "work": "Prep"}, {"time": "12:55", "lane": "L", "track": 106, "k10": 3100, "push": 5.75, "k60": 3120, "type": "track"}, {"time": "13:04", "lane": "L", "track": 107, "slKeg": 2900, "k10": 3050, "push": 5.75, "k60": 3100, "type": "track"}, {"time": "13:08", "k125": 3300, "k330": 3300, "nate": 7.2, "notes": "Drag only", "type": "work", "work": "Prep"}, {"time": "13:25", "run": "Q3", "lane": "L", "car": "Austin", "uv": 6.9, "solar": 1006, "cc": 15, "air": 74, "track": 107, "slLoc": "1\"", "slKeg": 3000, "k10": 3050, "push": 6.25, "k60": 3060, "k80": "B", "k125": 3300, "sticky": 150, "k330": 3300, "nate": 7.2, "notes": "Inside seam, firmer / Light Haze / 3.91, 332mph", "type": "run"}, {"time": "13:45", "notes": "Drag only", "type": "work", "work": "Prep"}, {"time": "14:02", "run": "Q3", "lane": "L", "car": "Matt H", "uv": 6.1, "solar": 988, "cc": 15, "air": 74, "track": 113, "slLoc": "1\"", "slKeg": 2950, "k10": 3130, "push": 6, "k60": 3080, "notes": "Aggressivily goes Left", "type": "run"}, {"time": "14:10", "lane": "R", "uv": 5.9, "track": 111, "type": "weather"}, {"time": "14:25", "run": "Q4", "notes": "57' - WB / Kenny LL", "type": "work", "work": "Scrape"}, {"time": "14:37", "notes": "660' - WB", "type": "work", "work": "Spray"}, {"time": "14:43", "lane": "R", "solar": 928, "cc": 0, "air": 76, "track": 113, "slKeg": 2980, "k10": 3040, "push": 6.5, "k60": 3100, "k80": "A+", "k125": 3330, "k330": 3300, "nate": 7, "type": "track"}, {"time": "15:07", "lane": "R", "track": 110, "k10": 3040, "push": 6.5, "k60": 3090, "type": "track"}, {"time": "15:16", "lane": "R", "track": 110, "k10": 3045, "k60": 3080, "k80": "B+", "type": "track"}, {"time": "15:22", "notes": "Drag only", "type": "work", "work": "Prep"}, {"time": "15:25", "lane": "R", "track": 107, "slKeg": 2900, "k10": 3050, "k60": 3060, "k125": 3300, "k330": 3300, "nate": 7.3, "type": "track"}, {"time": "15:48", "run": "Q4", "lane": "R", "car": "Austin", "uv": 2.4, "solar": 732, "cc": 32, "air": 77, "track": 106, "slLoc": "65\"", "slKeg": 2900, "k10": 3050, "push": 6.25, "k60": 3060, "k80": "B+", "k125": 3300, "sticky": 130, "k330": 3300, "nate": 7.3, "notes": "Getting greasy, moved inside / Light Cloud / 3.88, 330 mph", "type": "run"}, {"time": "15:50", "notes": "Drag only", "type": "work", "work": "Prep"}, {"time": "16:10", "run": "Q4", "lane": "R", "car": "Matt H", "uv": 1.4, "solar": 737, "cc": 32, "air": 77, "track": 106, "slKeg": 2940, "k10": 3050, "push": 5.75, "k60": 3100, "k80": "B+", "notes": "Haze / 6.52, 210mph", "type": "run"}, {"time": "16:25", "notes": "Drag only", "type": "work", "work": "Prep"}, {"time": "16:35", "run": "Q4", "lane": "R", "car": "PM", "uv": 0.9, "solar": 641, "cc": 32, "air": 76, "track": 102, "slKeg": 3100, "k10": 3180, "push": 7, "k60": 3150, "k80": 3180, "k125": "B", "notes": "5.700, 249mph", "type": "run"}, {"time": "16:56", "lane": "R", "uv": 0.4, "solar": 511, "cc": 32, "air": 76, "track": 100, "slKeg": 2820, "k10": 2630, "push": 2.5, "k60": 2900, "k80": 3020, "notes": "Light cloud", "type": "track"}, {"time": "17:13", "notes": "1320' - 40'", "type": "work", "work": "Spray"}, {"time": "17:50", "lane": "L", "track": 92, "type": "weather"}, {"time": "18:25", "notes": "Drag only", "type": "work", "work": "Prep"}, {"time": "18:29", "notes": "1320' - 40'", "type": "work", "work": "Spray"}, {"time": "18:30", "lane": "L", "track": 89, "slKeg": 2800, "k10": 3300, "push": 8.5, "k60": 3200, "k80": 3200, "k125": "A++", "type": "track"}, {"time": "18:58", "run": "E1", "lane": "L", "car": "PM", "air": 70, "track": 87, "slKeg": 2720, "k10": 2850, "push": 3.5, "k60": 3150, "k80": 3200, "k125": "A+ ", "notes": "5.69, 250mph", "type": "run"}];
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const has=v=>v!==undefined&&v!==null&&String(v).trim()!=="";
+const num=v=>{if(!has(v))return null;const n=Number(v);return isFinite(n)?n:null};
+const toMin=t=>{const[h,m]=t.split(":").map(Number);return h*60+m};
+const fmt=m=>{let h=Math.floor(m/60);const mm=String(m%60).padStart(2,"0"),ap=h>=12?"PM":"AM";h=h%12||12;return `${h}:${mm} ${ap}`};
+const short=m=>fmt(m).replace(/ [AP]M$/,"");
+const ago=mins=>mins<1?"just now":mins<60?`${mins} min ago`:`${Math.floor(mins/60)} hr ${mins%60?mins%60+" min ":""}ago`;
+const ROWS=DATA.map((e,i)=>({...e,m:toMin(e.time),i})).sort((a,b)=>a.m-b.m||a.i-b.i);
+const STATIONS=[["slKeg","SL"],["k10","10'"],["k60","60'"],["k80","80'"],["k125","125'"],["k330","330'"]];
+// each spot's range across the whole day, so the shade says "low or high for that spot today"
+const RANGE={};for(const[k]of STATIONS){const v=ROWS.map(e=>num(e[k])).filter(x=>x!=null);RANGE[k]=v.length?[Math.min(...v),Math.max(...v)]:null}
+const shade=(k,v)=>{const r=RANGE[k];if(!r||r[1]===r[0])return 3;return Math.min(6,1+Math.floor((v-r[0])/(r[1]-r[0])*5.999))};
+let now=toMin("13:47"),lane="all",newestFirst=true;
+const clock=$("clock");clock.min=ROWS[0].m;clock.max=ROWS[ROWS.length-1].m+20;clock.value=now;
+clock.oninput=()=>{now=+clock.value;render()};
+document.querySelectorAll("[data-lane]").forEach(b=>b.onclick=()=>{lane=b.dataset.lane;document.querySelectorAll("[data-lane]").forEach(c=>c.setAttribute("aria-pressed",c===b));render()});
+$("order").onclick=()=>{newestFirst=!newestFirst;$("order").textContent=newestFirst?"Newest first":"Oldest first";render()};
+$("order").textContent="Newest first";
+function carClass(c){const s=String(c||"").toLowerCase();return s.includes("austin")?"car-austin":/\bpm\b/.test(s)?"car-pm":s.includes("matt")?"car-matt":"car-other"}
+function lastBefore(rows,pred,m){for(let i=rows.length-1;i>=0;i--)if(rows[i].m<=m&&pred(rows[i]))return rows[i];return null}
+
+function renderNow(rows){
+  const st=(k,label,unit,dec=0)=>{
+    const cur=lastBefore(rows,e=>num(e[k])!=null,now);
+    if(!cur)return `<div class="stat"><div class="k">${label}</div><div class="v">—</div></div>`;
+    const prev=lastBefore(rows,e=>num(e[k])!=null,cur.m-60);
+    const v=num(cur[k]);let d="";
+    if(prev){const diff=v-num(prev[k]);if(Math.abs(diff)>=(dec?0.1:1))d=`<div class="d ${diff>0?"up":"down"}">${diff>0?"▲":"▼"} ${Math.abs(diff).toFixed(dec)} in 1 hr</div>`;else d=`<div class="d">steady</div>`}
+    return `<div class="stat"><div class="k">${label}</div><div class="v">${v.toLocaleString(undefined,{maximumFractionDigits:dec})}${unit}</div>${d}</div>`;
+  };
+  $("nowStats").innerHTML=st("track","Track","°")+st("air","Air","°")+st("solar","Solar","")+st("uv","UV","",1)+st("cc","Cloud","%");
+  const prep=lastBefore(rows,e=>e.type==="work",now);
+  const run=lastBefore(rows,e=>e.type==="run",now);
+  const prepHtml=prep?`<div class="nl"><div class="label">Last track prep</div><div class="what">${esc(prep.work)}${prep.notes?" · "+esc(prep.notes):""}</div><div class="ago ${now-prep.m>60?"old":""}">${ago(now-prep.m)} · ${fmt(prep.m)}</div></div>`
+    :`<div class="nl"><div class="label">Last track prep</div><div class="what">None yet today</div></div>`;
+  const runHtml=run?`<div class="nl"><div class="label">Last run</div><div class="what">${esc(run.run||"")} · ${esc(run.car)} · ${esc(run.lane||"")} lane${run.notes?` · ${esc(run.notes.split("/").pop().trim())}`:""}</div><div class="ago ${now-run.m>60?"old":""}">${ago(now-run.m)} · ${fmt(run.m)}</div></div>`
+    :`<div class="nl"><div class="label">Last run</div><div class="what">None yet today</div></div>`;
+  $("nowLines").innerHTML=prepHtml+runHtml;
+}
+function strip(e,rows){
+  const prevSame=k=>lastBefore(rows,x=>x!==e&&x.m<=e.m&&x.i!==e.i&&(x.lane||"")===(e.lane||"")&&num(x[k])!=null&&(x.m<e.m||x.i<e.i),e.m);
+  const any=STATIONS.some(([k])=>has(e[k]));if(!any)return "";
+  return `<div class="strip">${STATIONS.map(([k,lab])=>{
+    const raw=e[k],v=num(raw);
+    if(!has(raw))return `<div class="st empty"><div class="n">—</div><div class="s">${lab}</div></div>`;
+    if(v==null)return `<div class="st txt"><div class="n">${esc(raw)}</div><div class="s">${lab}</div></div>`;
+    const lvl=shade(k,v),p=prevSame(k);let dl="";
+    if(p){const d=v-num(p[k]);if(d)dl=`<div class="dl ${d>0?"up":"down"}">${d>0?"▲":"▼"}${Math.abs(d)}</div>`}
+    return `<div class="st ${lvl>=4?"dark":""}" style="background:var(--k${lvl})"><div class="n">${v}</div><div class="s">${lab}</div>${dl}</div>`;
+  }).join("")}</div>`;
+}
+function extras(e){
+  const x=[];const add=(lab,k)=>{if(has(e[k]))x.push(`${lab} <b>${esc(e[k])}</b>`)};
+  add("Sticky","sticky");add("Push","push");add("Nate","nate");add("SL loc","slLoc");
+  return x.length?`<div class="extras">${x.join("")}</div>`:"";
+}
+function wx(e){const p=[];const a=(l,k,u="")=>{if(has(e[k]))p.push(`${l} <b>${esc(e[k])}${u}</b>`)};
+  a("Track","track","°");a("Air","air","°");a("Solar","solar");a("UV","uv");a("CC","cc","%");return p.join(" · ")}
+function render(){
+  $("clk").textContent=fmt(now);
+  const upto=ROWS.filter(e=>e.m<=now);
+  renderNow(upto);
+  let rows=upto.filter(e=>lane==="all"||e.type==="work"||e.type==="weather"||e.lane===lane);
+  if(newestFirst)rows=[...rows].reverse();
+  $("log").innerHTML=rows.length?rows.map(e=>{
+    if(e.type==="work"){const cls=String(e.work).toLowerCase();
+      return `<div class="work ${cls}"><span class="wt">${short(e.m)}</span><span class="wl">${esc(e.work)}</span><span class="wn">${esc(e.notes||"")}</span></div>`}
+    if(e.type==="weather")return `<div class="e weather"><div><span class="t">${short(e.m)}</span></div><div class="body"><div class="head">Weather · <span class="meta">${wx(e)}</span></div></div></div>`;
+    if(e.type==="run"){
+      const res=(e.notes||"").match(/(\d\.\d{2,3})(?:et)?[ ,]*(\d{3})?\s*mph/i);
+      const result=res?`${res[1]}${res[2]?" / "+res[2]:""}`:"";
+      const otherNotes=(e.notes||"").split("/").map(s=>s.trim()).filter(s=>!/\d\.\d{2,3}/.test(s)).join(" / ");
+      return `<div class="e run"><div><span class="t">${short(e.m)}</span><span class="ty">Run</span></div><div class="body">
+        <div class="head"><span class="tag">${esc(e.run||"")}</span><span class="car ${carClass(e.car)}">${esc(e.car)}</span>${e.lane?`<span class="lane ${e.lane}">${e.lane}</span>`:""}<span class="result">${esc(result)}</span></div>
+        <div class="meta">${wx(e)}</div>${strip(e,ROWS)}${extras(e)}${otherNotes?`<div class="note">${esc(otherNotes)}</div>`:""}</div></div>`}
+    return `<div class="e"><div><span class="t">${short(e.m)}</span><span class="ty">Track</span></div><div class="body">
+      <div class="head">Track reading${e.lane?` <span class="lane ${e.lane}">${e.lane}</span>`:""}<span class="meta" style="margin-left:6px">${wx(e)}</span></div>
+      ${strip(e,ROWS)}${extras(e)}${e.notes?`<div class="note">${esc(e.notes)}</div>`:""}</div></div>`;
+  }).join(""):`<div class="empty-log">Nothing logged yet at ${fmt(now)}.</div>`;
+}
+render();
+</script>
+</body>
+</html>
