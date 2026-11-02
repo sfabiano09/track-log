@@ -48,12 +48,16 @@ h1{margin:0;font:700 28px/1 var(--display)}
 .stat .v{font:700 30px/1.05 var(--display)}
 .stat .d{font-size:12px;color:#C9CED3;white-space:nowrap}
 .stat .d.up{color:#7BE0A7} .stat .d.down{color:#FF9C92}
+.stat .when{font-size:11.5px;color:#9EA5AB;white-space:nowrap;margin-top:1px}
+.stat .when.stale{color:var(--note)}
 .now-lines{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
 .nl{background:rgba(255,255,255,.08);border-radius:10px;padding:8px 10px;min-width:0}
 .nl .what{font:700 18px/1.15 var(--display);overflow-wrap:anywhere}
 .nl .ago{font:700 13px/1 var(--display);letter-spacing:.06em;text-transform:uppercase;color:var(--note)}
 .nl .ago.old{color:#C9CED3}
 .nl .sub{font-size:13px;color:#C9CED3;overflow-wrap:anywhere}
+.nl .runnums{margin-top:5px;font-size:13.5px;line-height:1.45}
+.nl .runnums b{color:#fff;font-weight:600}
 
 /* controls */
 .controls{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
@@ -179,6 +183,11 @@ $("order").textContent="Newest first";
 function carClass(c){const s=String(c||"").toLowerCase();return s.includes("austin")?"car-austin":/\bpm\b/.test(s)?"car-pm":s.includes("matt")?"car-matt":"car-other"}
 function lastBefore(rows,pred,m){for(let i=rows.length-1;i>=0;i--)if(rows[i].m<=m&&pred(rows[i]))return rows[i];return null}
 
+function runNumbers(r){
+  const p=[];const a=(lab,k,u="")=>{if(has(r[k]))p.push(`<span style="white-space:nowrap">${lab} <b>${esc(r[k])}${u}</b></span>`)};
+  a("Trk","track","°");a("SL","slKeg");a("SL Stk","slSticky");a("10'","k10");a("P","push");a("60'","k60");a("80'","k80");a("125'","k125");a("Stk","sticky");a("330'","k330");a("Nate","nate");
+  return p.length?`<div class="sub runnums">${p.join(" · ")}</div>`:"";
+}
 function renderNow(rows){
   const st=(k,label,unit,dec=0)=>{
     const cur=lastBefore(rows,e=>num(e[k])!=null,now);
@@ -186,14 +195,15 @@ function renderNow(rows){
     const prev=lastBefore(rows,e=>num(e[k])!=null,cur.m-60);
     const v=num(cur[k]);let d="";
     if(prev){const diff=v-num(prev[k]);if(Math.abs(diff)>=(dec?0.1:1))d=`<div class="d ${diff>0?"up":"down"}">${diff>0?"▲":"▼"} ${Math.abs(diff).toFixed(dec)} in 1 hr</div>`;else d=`<div class="d">steady</div>`}
-    return `<div class="stat"><div class="k">${label}</div><div class="v">${v.toLocaleString(undefined,{maximumFractionDigits:dec})}${unit}</div>${d}</div>`;
+    const age=now-cur.m;
+    return `<div class="stat"><div class="k">${label}</div><div class="v">${v.toLocaleString(undefined,{maximumFractionDigits:dec})}${unit}</div>${d}<div class="when ${age>60?"stale":""}">${short(cur.m)} · ${age<1?"now":age<60?age+"m ago":Math.floor(age/60)+"h "+(age%60)+"m ago"}</div></div>`;
   };
   $("nowStats").innerHTML=st("track","Track","°")+st("air","Air","°")+st("solar","Solar","")+st("uv","UV","",1)+st("cc","Cloud","%");
   const prep=lastBefore(rows,e=>e.type==="work",now);
   const run=lastBefore(rows,e=>e.type==="run",now);
   const prepHtml=prep?`<div class="nl"><div class="label">Last track prep</div><div class="what">${esc(prep.work)}${prep.notes?" · "+esc(prep.notes):""}</div><div class="ago ${now-prep.m>60?"old":""}">${ago(now-prep.m)} · ${fmt(prep.m)}</div></div>`
     :`<div class="nl"><div class="label">Last track prep</div><div class="what">None yet today</div></div>`;
-  const runHtml=run?`<div class="nl"><div class="label">Last run</div><div class="what">${esc(run.run||"")} · ${esc(run.car)} · ${esc(run.lane||"")} lane${run.notes?` · ${esc(run.notes.split("/").pop().trim())}`:""}</div><div class="ago ${now-run.m>60?"old":""}">${ago(now-run.m)} · ${fmt(run.m)}</div></div>`
+  const runHtml=run?`<div class="nl"><div class="label">Last run</div><div class="what">${esc(run.run||"")} · ${esc(run.car)} · ${esc(run.lane||"")} lane${run.notes?` · ${esc(run.notes.split("/").pop().trim())}`:""}</div><div class="ago ${now-run.m>60?"old":""}">${ago(now-run.m)} · ${fmt(run.m)}</div>${runNumbers(run)}</div>`
     :`<div class="nl"><div class="label">Last run</div><div class="what">None yet today</div></div>`;
   $("nowLines").innerHTML=prepHtml+runHtml;
 }
