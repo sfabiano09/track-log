@@ -82,8 +82,15 @@
       const score = Math.exp(-0.5 * d2) * (0.6 + 0.4 * cover);
       return { r: p.r, match: Math.round(100 * score), rank: -score + 0.0001 * age, sameTrack: p.r.event === track };   // about 1 point per 100 days older
     }).sort((a, b) => a.rank - b.rank);
-    const same = scored.filter(s => s.sameTrack).slice(0, n);
-    return { list: [...same, ...scored.filter(s => !s.sameTrack).slice(0, n - same.length)], q };
+    // up to 2 from this track, then the best match from the last 3 races at other tracks, then fill with the next best
+    const wk = iso => { const d = new Date(iso + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() - (d.getUTCDay() - 3 + 7) % 7); return d.toISOString().slice(0, 10); };
+    const raceOf = r => r.event + "|" + wk(r.date);
+    const recentRaces = [...new Set(scored.filter(x => !x.sameTrack && x.r.date < (date || "9999")).map(x => x.r).sort((a, b) => b.date.localeCompare(a.date)).map(raceOf))].slice(0, 3);
+    const out = scored.filter(x => x.sameTrack).slice(0, Math.min(2, n));
+    const rec = scored.find(x => !x.sameTrack && recentRaces.includes(raceOf(x.r)));
+    if (rec && out.length < n) out.push({ ...rec, recent: true });
+    for (const x of scored) { if (out.length >= n) break; if (!out.some(o => o.r === x.r)) out.push(x); }
+    return { list: out, q };
   }
 
   const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"], MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -101,7 +108,7 @@
       const b = nx(q[k]), d = b == null ? null : a - b;
       const dd = d == null || Math.abs(d) < (dec ? 0.05 : 0.5) ? "" : ` <i class="${d > 0 ? "hi" : "lo"}">${d > 0 ? "+" : "−"}${Math.abs(d).toFixed(dec)}</i>`;
       return `<span>${lab} <b>${esc(r[k])}${u}</b>${dd}</span>`; };
-    return `<div class="tlv-sim">${head}<div class="tlv-simlist">${list.map(({ r, match, sameTrack }) => {
+    return `<div class="tlv-sim">${head}<div class="tlv-simlist">${list.map(({ r, match, sameTrack, recent }) => {
       const res = has(r.et) ? [r.et, r.mph].filter(has).join(" / ") : [r.outcome, has(r.mph) ? r.mph : ""].filter(has).join(" · ");
       const splits = [["60'", "t60"], ["330'", "t330"], ["660'", "t660"]].filter(([, k]) => has(r[k])).map(([l, k]) => `${l} <b>${esc(r[k])}</b>`);
       if (has(r.fieldBestEt)) splits.push(`Field best <b>${esc(r.fieldBestEt)}</b>`);
@@ -113,7 +120,7 @@
         <div class="simwho">${esc(r.event)} · ${esc(prettyDay(r.date))}${has(r.time) ? " · " + short(toMin(r.time)) : ""}</div>
         <div class="what">${[r.lane && r.lane + " lane", res].filter(has).map(esc).join(" · ")}</div>
         ${splits.length ? `<div class="simsplits">${splits.join(" · ")}</div>` : ""}
-        ${sameTrack ? "" : `<div class="simflag">Other track</div>`}
+        ${sameTrack ? "" : `<div class="simflag">${recent ? "Recent race" : "Other track"}</div>`}
         <div class="runnums simnums">${nums.join(" · ")}</div>
         ${note ? `<div class="simnote">${esc(note)}</div>` : ""}</div>`;
     }).join("")}</div><div class="tlv-simkey">+/− = that run's number compared with now</div></div>`;
