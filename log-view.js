@@ -42,6 +42,7 @@
   // weights: track temp first, KEG second, sticky third, then weather and time of day
   const FEATS = [["track", 4], ["slKeg", 1.2], ["k10", 1.2], ["k60", 1.2], ["k80", 0.6], ["k125", 1], ["k330", 1],
     ["slSticky", 1], ["sticky", 1], ["nate", 0.75], ["push", 0.5], ["uv", 0.4], ["solar", 0.4], ["air", 0.4], ["min", 0.4], ["cc", 0.15]];
+  const MIN_MATCH = 80;
   const isAustin = r => carCls(r.car) === "austin";
 
   /** The track as it stood at minute m of a day: the latest of each reading, with the KEG numbers taken together from one reading.
@@ -75,7 +76,7 @@
     const qv = Object.fromEntries(FEATS.map(([k]) => [k, k === "min" ? q.min : nx(q[k])]));
     const qW = FEATS.reduce((s, [k, w]) => s + (qv[k] != null ? w : 0), 0);
     const day0 = Date.parse(date || new Date().toISOString().slice(0, 10));
-    const scored = pool.map(p => {
+    let scored = pool.map(p => {
       let d2 = 0, W = 0;
       for (const [k, w] of FEATS) if (qv[k] != null && p.v[k] != null) { d2 += w * ((qv[k] - p.v[k]) / sd[k]) ** 2; W += w; }
       d2 /= W; const cover = W / qW, age = Math.abs(day0 - Date.parse(p.r.date)) / 864e5;
@@ -85,7 +86,9 @@
     // up to 2 from this track, then the best match from the last 3 races at other tracks, then fill with the next best
     const wk = iso => { const d = new Date(iso + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() - (d.getUTCDay() - 3 + 7) % 7); return d.toISOString().slice(0, 10); };
     const raceOf = r => r.event + "|" + wk(r.date);
-    const recentRaces = [...new Set(scored.filter(x => !x.sameTrack && x.r.date < (date || "9999")).map(x => x.r).sort((a, b) => b.date.localeCompare(a.date)).map(raceOf))].slice(0, 3);
+    const recentRaces = [...new Set(pool.map(p => ({ r: p.r, sameTrack: p.r.event === track })).filter(x => !x.sameTrack && x.r.date < (date || "9999")).map(x => x.r).sort((a, b) => b.date.localeCompare(a.date)).map(raceOf))].slice(0, 3);
+    scored = scored.filter(x => x.match >= MIN_MATCH);   // only close matches
+    if (!scored.length) return { list: [], reason: `No past runs are an ${MIN_MATCH}% or better match for the track right now.` };
     const out = scored.filter(x => x.sameTrack).slice(0, Math.min(2, n));
     const rec = scored.find(x => !x.sameTrack && recentRaces.includes(raceOf(x.r)));
     if (rec && out.length < n) out.push({ ...rec, recent: true });
