@@ -1200,21 +1200,27 @@ document.addEventListener("visibilitychange",()=>{if(document.visibilityState===
 if(!cfg.key)setTimeout(()=>toast("Open Settings to add your Tomorrow.io key and crew numbers."),600);
 </script>
 <script type="module">
-import { login, logout, watchRole, watchEntries, saveEntry, deleteEntry, eventIdFor } from "../fb.js";
+import { login, logout, watchRole, watchEntries, saveEntry, deleteEntry, eventIdFor, legacyEventIdFor } from "../fb.js";
 const LIVE = window.LIVE = {
   role: null,
-  save(e){ const c = { ...e }; delete c.dirty; delete c.xl; delete c._pending;
+  save(e){ const c = { ...e }; delete c.dirty; delete c.xl; delete c._pending;   // _eid is kept so an old reading moves to its race week
     saveEntry(c).catch(err => toast(err && err.code === "permission-denied" ? "This login can't save. Sign in with the Edit password." : "Couldn't save to the team database: " + (err.message || err))); },
   del(e){ deleteEntry(e).catch(err => toast("Couldn't delete from the team database: " + (err.message || err))); }
 };
 let unsub = null, subId = null;
 window.liveResub = function(){
   if(!LIVE.role) return;
-  const id = eventIdFor(cfg.track, curDate);
+  const id = eventIdFor(cfg.track, curDate), old = legacyEventIdFor(cfg.track, curDate);
   if(id === subId) return;
   subId = id; unsub && unsub(); entries = []; window.liveMeta = { fromCache: true };
-  unsub = watchEntries(id, (list, meta) => { entries = list; window.liveMeta = meta; render(); },
-    err => { toast("Lost the connection to the team database. Sign in again if this keeps happening."); console.error(err); });
+  // the race week, plus the older month-based id so earlier readings can still be edited or deleted
+  const parts = { [id]: [], [old]: [] }, metas = {};
+  const merge = () => { entries = [...parts[id], ...parts[old]];
+    window.liveMeta = { pending: Object.values(metas).reduce((s, m) => s + (m.pending || 0), 0), fromCache: Object.values(metas).some(m => m.fromCache) }; render(); };
+  const onErr = err => { toast("Lost the connection to the team database. Sign in again if this keeps happening."); console.error(err); };
+  const u1 = watchEntries(id, (list, meta) => { parts[id] = list; metas[id] = meta; merge(); }, onErr);
+  const u2 = watchEntries(old, (list, meta) => { parts[old] = list; metas[old] = meta; merge(); }, onErr);
+  unsub = () => { u1(); u2(); };
 };
 watchRole(r => {
   LIVE.role = r; document.body.dataset.role = r || "out";
