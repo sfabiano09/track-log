@@ -34,8 +34,87 @@
     return p.length ? `<div class="runnums">${p.join(" · ")}</div>` : "";
   }
 
+
+  /* ---------- similar runs ---------- */
+  // a reading as a number: "2720 RT" → 2720, "3.5/4" or "25/ 135" → the average
+  const nx = v => { if (!has(v)) return null; const m = String(v).match(/\d+(?:\.\d+)?/g); if (!m) return null; const a = m.map(Number); return a.reduce((x, y) => x + y, 0) / a.length; };
+  const KEG_K = ["slKeg", "k10", "k60", "k80", "k125", "k330"], STK_K = ["slSticky", "sticky", "push", "nate"];
+  // weights: track temp first, KEG second, sticky third, then weather and time of day
+  const FEATS = [["track", 4], ["slKeg", 1.2], ["k10", 1.2], ["k60", 1.2], ["k80", 0.6], ["k125", 1], ["k330", 1],
+    ["slSticky", 1], ["sticky", 1], ["nate", 0.75], ["push", 0.5], ["uv", 0.4], ["solar", 0.4], ["air", 0.4], ["min", 0.4], ["cc", 0.15]];
+  const isAustin = r => carCls(r.car) === "austin";
+
+  /** The track as it stood at minute m of a day: the latest of each reading, with the KEG numbers taken together from one reading.
+      A run's own numbers (when given) win over earlier readings. */
+  function conditions(rawRows, m, own) {
+    const rows = prep(rawRows).filter(e => e.m <= m && e.type !== "work"), c = { min: m };
+    const latest = k => { for (let i = rows.length - 1; i >= 0; i--) if (has(rows[i][k])) return rows[i][k]; return undefined; };
+    for (const k of ["track", "air", "solar", "uv", "cc"]) c[k] = latest(k);
+    let kr = null; for (let i = rows.length - 1; i >= 0 && !kr; i--) if (KEG_K.some(k => has(rows[i][k]))) kr = rows[i];
+    for (const k of [...KEG_K, ...STK_K, "slLoc"]) c[k] = kr && has(kr[k]) ? kr[k] : (KEG_K.includes(k) ? undefined : latest(k));
+    if (own) for (const k of ["track", "air", "solar", "uv", "cc", ...KEG_K, ...STK_K, "slLoc"]) if (has(own[k])) c[k] = own[k];
+    for (const k in c) if (c[k] === undefined) delete c[k];
+    return c;
+  }
+
+  /** The n Austin runs whose conditions are closest to q. Same track first (filled from other tracks), newer breaks near-ties. */
+  function similar(history, q, { track, date, n = 3 } = {}) {
+    if (nx(q.track) == null) return { list: [], reason: "Log a track temp to see similar runs." };
+    // one copy of each run (the run sheet's copy wins over the one saved from the phone)
+    const byKey = new Map();
+    for (const r of history || []) {
+      if (!isAustin(r) || r.date === date) continue;
+      const key = [r.date, String(r.run || "").toLowerCase(), "austin"].join("|"), cur = byKey.get(key);
+      if (!cur || (String(cur.id).startsWith("tl-") && !String(r.id).startsWith("tl-"))) byKey.set(key, r);
+    }
+    const pool = [...byKey.values()].map(r => ({ r, v: Object.fromEntries(FEATS.map(([k]) => [k, k === "min" ? (has(r.time) ? toMin(r.time) : null) : nx(r[k])])) }))
+      .filter(p => p.v.track != null);
+    if (!pool.length) return { list: [], reason: "No past Austin runs to compare with yet." };
+    const sd = {}; for (const [k] of FEATS) { const a = pool.map(p => p.v[k]).filter(x => x != null);
+      const mu = a.reduce((x, y) => x + y, 0) / (a.length || 1); sd[k] = Math.max(Math.sqrt(a.reduce((x, y) => x + (y - mu) ** 2, 0) / (a.length || 1)), k === "min" ? 30 : 1e-6); }
+    const qv = Object.fromEntries(FEATS.map(([k]) => [k, k === "min" ? q.min : nx(q[k])]));
+    const qW = FEATS.reduce((s, [k, w]) => s + (qv[k] != null ? w : 0), 0);
+    const day0 = Date.parse(date || new Date().toISOString().slice(0, 10));
+    const scored = pool.map(p => {
+      let d2 = 0, W = 0;
+      for (const [k, w] of FEATS) if (qv[k] != null && p.v[k] != null) { d2 += w * ((qv[k] - p.v[k]) / sd[k]) ** 2; W += w; }
+      d2 /= W; const cover = W / qW, age = Math.abs(day0 - Date.parse(p.r.date)) / 864e5;
+      const score = Math.exp(-0.5 * d2) * (0.6 + 0.4 * cover);
+      return { r: p.r, match: Math.round(100 * score), rank: -score + 0.0001 * age, sameTrack: p.r.event === track };   // about 1 point per 100 days older
+    }).sort((a, b) => a.rank - b.rank);
+    const same = scored.filter(s => s.sameTrack).slice(0, n);
+    return { list: [...same, ...scored.filter(s => !s.sameTrack).slice(0, n - same.length)], q };
+  }
+
+  const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"], MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const prettyDay = iso => { const d = new Date(iso + "T12:00:00Z"); return `${DAYS[d.getUTCDay()]} ${MON[d.getUTCMonth()]} ${d.getUTCDate()}`; };
+  function similarHtml(history, q, opts) {
+    const { list, reason } = similar(history, q, opts);
+    const head = `<div class="tlv-simhead"><span class="label">Most similar Austin runs</span><span class="asof">closest track temp, then KEG, sticky and weather</span></div>`;
+    if (!list.length) return `<div class="tlv-sim">${head}<div class="tlv-simnone">${esc(reason)}</div></div>`;
+    const cmp = (lab, k, r, u = "", dec = 0) => { const a = nx(r[k]); if (a == null) return "";
+      const b = nx(q[k]), d = b == null ? null : a - b;
+      const dd = d == null || Math.abs(d) < (dec ? 0.05 : 0.5) ? "" : ` <i class="${d > 0 ? "hi" : "lo"}">${d > 0 ? "+" : "−"}${Math.abs(d).toFixed(dec)}</i>`;
+      return `<span>${lab} <b>${esc(r[k])}${u}</b>${dd}</span>`; };
+    return `<div class="tlv-sim">${head}<div class="tlv-simlist">${list.map(({ r, match, sameTrack }) => {
+      const res = has(r.et) ? [r.et, r.mph].filter(has).join(" / ") : [r.outcome, has(r.mph) ? r.mph : ""].filter(has).join(" · ");
+      const splits = [["60'", "t60"], ["330'", "t330"], ["660'", "t660"]].filter(([, k]) => has(r[k])).map(([l, k]) => `${l} <b>${esc(r[k])}</b>`);
+      if (has(r.fieldBestEt)) splits.push(`Field best <b>${esc(r.fieldBestEt)}</b>`);
+      const nums = [cmp("Trk", "track", r, "°"), cmp("SL", "slKeg", r), cmp("10'", "k10", r), cmp("60'", "k60", r), cmp("80'", "k80", r), cmp("125'", "k125", r), cmp("330'", "k330", r),
+        cmp("SL Stk", "slSticky", r), cmp("Stk", "sticky", r), cmp("P", "push", r, "", 1), cmp("Nate", "nate", r, "", 1), cmp("UV", "uv", r, "", 1), cmp("Air", "air", r, "°")].filter(Boolean);
+      const note = plainNotes(r);
+      return `<div class="tlv-simrun${sameTrack ? "" : " other"}">
+        <div class="simtop"><span class="simpct">${match}%</span><span class="simwho">${esc(sameTrack ? "" : r.event + " · ")}${esc(prettyDay(r.date))}${has(r.time) ? " · " + short(toMin(r.time)) : ""}</span></div>
+        <div class="what">${[r.run, r.lane && r.lane + " lane", res].filter(has).map(esc).join(" · ")}</div>
+        ${splits.length ? `<div class="simsplits">${splits.join(" · ")}</div>` : ""}
+        ${sameTrack ? "" : `<div class="simflag">Other track</div>`}
+        <div class="runnums simnums">${nums.join(" · ")}</div>
+        ${note ? `<div class="simnote">${esc(note)}</div>` : ""}</div>`;
+    }).join("")}</div><div class="tlv-simkey">+/− = that run's number compared with now</div></div>`;
+  }
+
   /** The black "Right now" panel. today=false shows the day's final readings without "ago". */
-  function rightNow(rawRows, { now, today = true } = {}) {
+  function rightNow(rawRows, { now, today = true, history = null, track = "", date = "" } = {}) {
     const rows = prep(rawRows);
     if (!today) now = 24 * 60;
     const upto = rows.filter(e => e.m <= now);
@@ -61,7 +140,7 @@
     }).join("");
     return `<section class="tlv-now" aria-label="${today ? "Right now" : "End of day"}"><div class="nowhead"><span class="label">${today ? "Right now" : "End of day"}</span><span class="asof">${today ? "as of " + fmt(now) : "final readings"}</span></div>
       <div class="tlv-grid">${stat("track", "Track", "°")}${stat("air", "Air", "°")}${stat("solar", "Solar", "")}${stat("uv", "UV", "", 1)}${stat("cc", "Cloud", "%")}</div>
-      <div class="tlv-lines">${prepBox("Spray", "spray")}${prepBox("Scrape", "scrape")}${runBox}</div></section>`;
+      <div class="tlv-lines">${prepBox("Spray", "spray")}${prepBox("Scrape", "scrape")}${runBox}</div>${history ? similarHtml(history, conditions(rawRows, now), { track, date }) : ""}</section>`;
   }
 
   /** The race-day log: track work as dividers, runs in bold boxes, KEG strips with change vs the same lane. */
@@ -103,5 +182,5 @@
         ${strip(e)}${extras(e)}${e.notes ? `<div class="note">${esc(e.notes)}</div>` : ""}</div></div>`;
     }).join("")}</div>`;
   }
-  window.TLV = { rightNow, log, toMin };
+  window.TLV = { rightNow, log, toMin, conditions, similar, carCls };
 })();

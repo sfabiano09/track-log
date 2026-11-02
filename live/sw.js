@@ -1,6 +1,6 @@
 // Keeps Track Log Live opening with no signal. Our own files: network first, cache as fallback.
 // The Firebase library files never change for a given version, so they are served from cache once fetched.
-const CACHE = "track-log-live-v5";
+const CACHE = "track-log-live-v6";
 const FILES = ["./", "index.html", "manifest.json", "../fb.js", "../log-view.js", "../log-view.css", "icon-180.png", "icon-192.png", "icon-512.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES))); self.skipWaiting(); });
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith("track-log-live") && k !== CACHE).map(k => caches.delete(k))))); self.clients.claim(); });

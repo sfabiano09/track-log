@@ -631,7 +631,7 @@ function renderNowPanel(){
   if(!window.TLV)return;
   const rows=entries.filter(e=>e.event===cfg.track&&e.date===curDate);
   const d=new Date(),today=curDate===todayISO();
-  $("nowPanel").innerHTML=TLV.rightNow(rows,{now:d.getHours()*60+d.getMinutes(),today});
+  $("nowPanel").innerHTML=TLV.rightNow(rows,{now:d.getHours()*60+d.getMinutes(),today,history:window.liveHistory||[],track:cfg.track,date:curDate});
   const tr=[...rows].filter(e=>e.track!==undefined&&String(e.track).trim()!=="").sort((a,b)=>(a.time||"").localeCompare(b.time||"")).pop();
   $("nowHint").textContent=tr?`Track ${tr.track}° at ${time12(tr.time)}`:"";
 }
@@ -1200,12 +1200,22 @@ document.addEventListener("visibilitychange",()=>{if(document.visibilityState===
 if(!cfg.key)setTimeout(()=>toast("Open Settings to add your Tomorrow.io key and crew numbers."),600);
 </script>
 <script type="module">
-import { login, logout, watchRole, watchEntries, saveEntry, deleteEntry, eventIdFor, legacyEventIdFor } from "../fb.js";
+import { login, logout, watchRole, watchEntries, saveEntry, deleteEntry, eventIdFor, legacyEventIdFor, saveHistoryRun, deleteHistoryRun, watchHistory } from "../fb.js";
 const LIVE = window.LIVE = {
   role: null,
   save(e){ const c = { ...e }; delete c.dirty; delete c.xl; delete c._pending;   // _eid is kept so an old reading moves to its race week
-    saveEntry(c).catch(err => toast(err && err.code === "permission-denied" ? "This login can't save. Sign in with the Edit password." : "Couldn't save to the team database: " + (err.message || err))); },
-  del(e){ deleteEntry(e).catch(err => toast("Couldn't delete from the team database: " + (err.message || err))); }
+    saveEntry(c).catch(err => toast(err && err.code === "permission-denied" ? "This login can't save. Sign in with the Edit password." : "Couldn't save to the team database: " + (err.message || err)));
+    saveRunHistory(c); },
+  del(e){ deleteEntry(e).catch(err => toast("Couldn't delete from the team database: " + (err.message || err)));
+    if(e.type === "run") deleteHistoryRun("tl-" + e.id).catch(() => {}); }
+};
+// Austin runs also go into the run history with the track numbers they were made on, for "Most similar Austin runs"
+function saveRunHistory(e){
+  if(e.type !== "run" || !window.TLV || TLV.carCls(e.car) !== "austin") return;
+  const day = entries.filter(x => x.event === e.event && x.date === e.date && x.id !== e.id);
+  const run = { ...TLV.conditions(day, TLV.toMin(e.time), e), id: "tl-" + e.id, source: "Track Log Live", event: e.event, date: e.date, time: e.time,
+    run: e.run, lane: e.lane, car: e.car, et: e.et, mph: e.mph, notes: e.notes };
+  delete run.min; saveHistoryRun(run).catch(() => {});
 };
 let unsub = null, subId = null;
 window.liveResub = function(){
@@ -1226,7 +1236,8 @@ watchRole(r => {
   LIVE.role = r; document.body.dataset.role = r || "out";
   $("loginScreen").hidden = !!r;
   $("acctStatus").textContent = r === "edit" ? "Signed in with the Edit password. You can log and change readings." : r === "view" ? "Signed in with the View password. Read only." : "";
-  if(!r){ unsub && unsub(); unsub = null; subId = null; entries = []; }
+  if(r && !window.unsubHistory) window.unsubHistory = watchHistory(list => { window.liveHistory = list; renderNowPanel(); }, err => console.error(err));
+  if(!r){ unsub && unsub(); unsub = null; subId = null; entries = []; window.unsubHistory && window.unsubHistory(); window.unsubHistory = null; window.liveHistory = []; }
   render();
 });
 $("loginForm").addEventListener("submit", async ev => {

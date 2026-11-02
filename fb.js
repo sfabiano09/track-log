@@ -98,3 +98,21 @@ export function watchEntries(eventId, cb, onErr) {
     s => cb(s.docs.map(d => ({ ...d.data(), id: d.id, _eid: eventId, _pending: d.metadata.hasPendingWrites })),
       { pending: s.docs.filter(d => d.metadata.hasPendingWrites).length, fromCache: s.metadata.fromCache }), onErr);
 }
+
+/* ---------- run history: one doc per Austin run, used to find runs with similar track conditions ---------- */
+/** Saves many runs (a run-history import) into "history". Re-importing the same file replaces the same docs. */
+export async function saveHistory(runs, onProgress) {
+  let done = 0;
+  for (let i = 0; i < runs.length; i += 400) {
+    const b = writeBatch(db), part = runs.slice(i, i + 400);
+    for (const r of part) b.set(doc(db, "history", r.id), { ...clean(r), updatedAt: serverTimestamp() });
+    await b.commit(); done += part.length; onProgress && onProgress(done, runs.length);
+  }
+}
+/** One run saved from Track Log Live, with the track numbers it was made on. */
+export const saveHistoryRun = run => setDoc(doc(db, "history", run.id), { ...clean(run), updatedAt: serverTimestamp() });
+export const deleteHistoryRun = id => deleteDoc(doc(db, "history", id));
+/** Live list of every run in the history. cb(runs) */
+export function watchHistory(cb, onErr) {
+  return onSnapshot(collection(db, "history"), s => cb(s.docs.map(d => ({ ...d.data(), id: d.id }))), onErr);
+}
