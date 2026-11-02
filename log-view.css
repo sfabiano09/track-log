@@ -53,6 +53,9 @@
 .tlv-simrun .simnums i{font-style:normal;font-size:12px}
 .tlv-simrun .simnums i.hi{color:#FFB4A9} .tlv-simrun .simnums i.lo{color:#9CC8FF}
 .tlv-simrun .simnote{font-size:13px;color:#AEB4BA;margin-top:4px;overflow-wrap:anywhere}
+.tlv-simrun.below{opacity:.55;box-shadow:inset 4px 0 0 #6B737A}
+.tlv-simrun.below .simpct{color:#C9CED3}
+.tlv-simrun .simflag.low{background:transparent;border:1px solid #9EA5AB;color:#C9CED3;margin-right:4px}
 .tlv-simkey{font-size:11.5px;color:#9EA5AB;margin-top:6px}
 
 /* the log */

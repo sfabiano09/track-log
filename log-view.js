@@ -87,8 +87,10 @@
     const wk = iso => { const d = new Date(iso + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() - (d.getUTCDay() - 3 + 7) % 7); return d.toISOString().slice(0, 10); };
     const raceOf = r => r.event + "|" + wk(r.date);
     const recentRaces = [...new Set(pool.map(p => ({ r: p.r, sameTrack: p.r.event === track })).filter(x => !x.sameTrack && x.r.date < (date || "9999")).map(x => x.r).sort((a, b) => b.date.localeCompare(a.date)).map(raceOf))].slice(0, 3);
+    const closest = scored.slice().sort((a, b) => b.match - a.match)[0];
     scored = scored.filter(x => x.match >= MIN_MATCH);   // only close matches
-    if (!scored.length) return { list: [], reason: `No past runs are an ${MIN_MATCH}% or better match for the track right now.` };
+    // nothing that close: show the single closest run, greyed out
+    if (!scored.length) return { list: closest ? [{ ...closest, below: true }] : [], reason: "No past runs to compare with yet.", q };
     const out = scored.filter(x => x.sameTrack).slice(0, Math.min(2, n));
     const rec = scored.find(x => !x.sameTrack && recentRaces.includes(raceOf(x.r)));
     if (rec && out.length < n) out.push({ ...rec, recent: true });
@@ -111,19 +113,19 @@
       const b = nx(q[k]), d = b == null ? null : a - b;
       const dd = d == null || Math.abs(d) < (dec ? 0.05 : 0.5) ? "" : ` <i class="${d > 0 ? "hi" : "lo"}">${d > 0 ? "+" : "−"}${Math.abs(d).toFixed(dec)}</i>`;
       return `<span>${lab} <b>${esc(r[k])}${u}</b>${dd}</span>`; };
-    return `<div class="tlv-sim">${head}<div class="tlv-simlist">${list.map(({ r, match, sameTrack, recent }) => {
+    return `<div class="tlv-sim">${head}<div class="tlv-simlist">${list.map(({ r, match, sameTrack, recent, below }) => {
       const res = has(r.et) ? [r.et, r.mph].filter(has).join(" / ") : [r.outcome, has(r.mph) ? r.mph : ""].filter(has).join(" · ");
       const splits = [["60'", "t60"], ["330'", "t330"], ["660'", "t660"]].filter(([, k]) => has(r[k])).map(([l, k]) => `${l} <b>${esc(r[k])}</b>`);
       if (has(r.fieldBestEt)) splits.push(`Field best <b>${esc(r.fieldBestEt)}</b>`);
       const nums = [cmp("Trk", "track", r, "°"), cmp("SL", "slKeg", r), cmp("10'", "k10", r), cmp("60'", "k60", r), cmp("80'", "k80", r), cmp("125'", "k125", r), cmp("330'", "k330", r),
         cmp("SL Stk", "slSticky", r), cmp("Stk", "sticky", r), cmp("P", "push", r, "", 1), cmp("Nate", "nate", r, "", 1), cmp("UV", "uv", r, "", 1), cmp("Air", "air", r, "°")].filter(Boolean);
       const note = plainNotes(r);
-      return `<div class="tlv-simrun${sameTrack ? "" : " other"}">
+      return `<div class="tlv-simrun${sameTrack ? "" : " other"}${below ? " below" : ""}">
         <div class="simtop"><span class="simpct">${match}%</span><span class="simrace">${esc([code(r.event), r.run].filter(has).join(" "))}</span></div>
         <div class="simwho">${esc(r.event)} · ${esc(prettyDay(r.date))}${has(r.time) ? " · " + short(toMin(r.time)) : ""}</div>
         <div class="what">${[r.lane && r.lane + " lane", res].filter(has).map(esc).join(" · ")}</div>
         ${splits.length ? `<div class="simsplits">${splits.join(" · ")}</div>` : ""}
-        ${sameTrack ? "" : `<div class="simflag">${recent ? "Recent race" : "Other track"}</div>`}
+        ${below ? `<div class="simflag low">Below ${MIN_MATCH}% · closest run</div>` : ""}${sameTrack ? "" : `<div class="simflag">${recent ? "Recent race" : "Other track"}</div>`}
         <div class="runnums simnums">${nums.join(" · ")}</div>
         ${note ? `<div class="simnote">${esc(note)}</div>` : ""}</div>`;
     }).join("")}</div><div class="tlv-simkey">+/− = that run's number compared with now</div></div>`;
