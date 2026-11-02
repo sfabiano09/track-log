@@ -8,6 +8,8 @@
 <meta name="theme-color" content="#EEF0F2">
 <meta name="robots" content="noindex">
 <link rel="apple-touch-icon" href="../icon-180.png">
+<link rel="stylesheet" href="../log-view.css">
+<script src="../log-view.js"></script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
 <style>
 /* Layout: a toolbar (race, day, live status), then the day sheet styled after the team's Excel tabs, then the graphs. */
@@ -45,7 +47,7 @@ button{cursor:pointer}
 
 /* toolbar */
 .top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-block:14px 8px}
-.top h1{margin:0;font:700 30px/1 var(--display);flex:1;min-width:0;white-space:nowrap}
+.top h1{margin:0;font:700 30px/1 var(--display);flex:1 0 auto;white-space:nowrap}
 .live{display:inline-flex;align-items:center;gap:6px;font:600 13px/1 var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .live i{width:9px;height:9px;border-radius:50%;background:var(--axis)}
 .live.on i{background:#1E9E55;box-shadow:0 0 0 3px rgba(30,158,85,.18)}
@@ -119,6 +121,14 @@ tr.pending td.c-time::after{content:" ⟳";color:var(--warn)}
 .g-panel svg text{font-family:var(--body);font-size:11px;fill:var(--muted)}
 .g-panel svg .lbl{font-size:11.5px;font-weight:600;fill:var(--ink)}
 .g-none{padding:14px 4px;color:var(--muted)}
+/* view tabs */
+.vtabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:0 0 12px}
+.vtab{border:0;background:none;padding:10px 16px;font:700 18px/1 var(--display);letter-spacing:.04em;color:var(--muted);border-bottom:3px solid transparent;margin-bottom:-1px}
+.vtab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink)}
+.logwrap{max-width:900px}
+.logctl{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:12px 0 8px}
+.loghead{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.loghead h2{margin:0;font:700 26px/1 var(--display)} .loghead .d{font:600 20px/1 var(--display);color:var(--muted)}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0));transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 18px;border-radius:999px;font-weight:600;z-index:50;max-width:calc(100% - 32px);text-align:center}
 @media (prefers-reduced-motion:reduce){tr.fresh td{animation:none}}
 </style>
@@ -152,12 +162,32 @@ tr.pending td.c-time::after{content:" ⟳";color:var(--warn)}
     <button class="btn" type="button" id="dl">Download Excel</button>
   </div>
 
-  <section class="sheet-card" aria-labelledby="sheetTitle">
+  <div class="vtabs" role="tablist" aria-label="View">
+    <button class="vtab" role="tab" data-view="log" aria-selected="true">Log</button>
+    <button class="vtab" role="tab" data-view="sheet" aria-selected="false">Sheet</button>
+    <button class="vtab" role="tab" data-view="graphs" aria-selected="false">Graphs</button>
+  </div>
+
+  <section id="vLog" class="logwrap tlv" aria-label="Log">
+    <div class="loghead"><h2 id="logTitle">—</h2><span class="d" id="logDay"></span></div>
+    <div id="rightNow"></div>
+    <div class="logctl">
+      <span class="label">Lane</span>
+      <button class="chip" data-llane="all" aria-pressed="true">Both</button>
+      <button class="chip" data-llane="L" aria-pressed="false">Left</button>
+      <button class="chip" data-llane="R" aria-pressed="false">Right</button>
+      <span class="spacer"></span>
+      <button class="chip" id="logOrder" aria-pressed="false">Newest first</button>
+    </div>
+    <div id="logList"></div>
+  </section>
+
+  <section class="sheet-card" id="vSheet" hidden aria-labelledby="sheetTitle">
     <div class="sheet-head"><h2 id="sheetTitle">—</h2><span class="d" id="sheetDay"></span><span class="who" id="count"></span></div>
     <div class="scroll" id="sheet"></div>
   </section>
 
-  <section aria-labelledby="gH">
+  <section id="vGraphs" hidden aria-labelledby="gH">
     <div class="g-title">
       <h2 id="gH">Graphs</h2>
       <div class="days" role="group" aria-label="Lane" id="lanes">
@@ -244,11 +274,37 @@ function renderAll(fresh = new Set()) {
     curDate = dates.includes(want) ? want : dates[dates.length - 1] || null;
   }
   $("days").innerHTML = dates.map(d => `<button class="chip" data-date="${d}" aria-pressed="${d === curDate}">${dayLabel(d)} ${+d.slice(8)}</button>`).join("");
-  renderSheet(fresh); buildGraphs();
+  renderSheet(fresh); renderLog(); if (view === "graphs") buildGraphs();
   if (curEvent) history.replaceState(null, "", "#" + curEvent + (curDate ? "." + curDate : ""));
 }
 $("days").onclick = e => { const b = e.target.closest("[data-date]"); if (b) { curDate = b.dataset.date; renderAll(); } };
 const dayEntries = () => entries.filter(e => e.date === curDate).sort((a, b) => (a.time || "").localeCompare(b.time || ""));
+
+/* ---------- log view (Right now + race-day log) ---------- */
+const todayISO = () => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
+let view = (() => { try { return localStorage.getItem("ti.view") || "log"; } catch (_) { return "log"; } })();
+let logLane = "all", newestFirst = true;
+function renderLog() {
+  const ev = events.find(e => e.id === curEvent), rows = curDate ? dayEntries() : [];
+  $("logTitle").textContent = ev ? ev.track : "No races yet"; $("logDay").textContent = curDate ? prettyDate(curDate) : "";
+  const today = curDate === todayISO(), d = new Date();
+  $("rightNow").innerHTML = ev ? TLV.rightNow(rows, { now: d.getHours() * 60 + d.getMinutes(), today }) : "";
+  $("logList").innerHTML = ev ? TLV.log(rows, { lane: logLane, newestFirst }) : `<div class="tlv-empty">Readings saved in Track Log Live show up here as soon as they're entered.</div>`;
+}
+function showView(v) {
+  view = v; try { localStorage.setItem("ti.view", v); } catch (_) {}
+  document.querySelectorAll(".vtab").forEach(t => t.setAttribute("aria-selected", t.dataset.view === v ? "true" : "false"));
+  $("vLog").hidden = v !== "log"; $("vSheet").hidden = v !== "sheet"; $("vGraphs").hidden = v !== "graphs";
+  if (v === "graphs") buildGraphs();
+}
+document.querySelector(".vtabs").addEventListener("click", e => { const t = e.target.closest("[data-view]"); if (t) showView(t.dataset.view); });
+document.querySelector(".logctl").addEventListener("click", e => {
+  const b = e.target.closest("[data-llane]");
+  if (b) { logLane = b.dataset.llane; document.querySelectorAll("[data-llane]").forEach(c => c.setAttribute("aria-pressed", c === b ? "true" : "false")); renderLog(); }
+});
+$("logOrder").onclick = () => { newestFirst = !newestFirst; $("logOrder").textContent = newestFirst ? "Newest first" : "Oldest first"; renderLog(); };
+setInterval(() => { if (view === "log" && curDate === todayISO()) renderLog(); }, 30000);   // keeps "minutes ago" current
+setTimeout(() => showView(view));   // after the graph code below has loaded
 
 /* ---------- the day sheet (same columns as the Excel day tabs) ---------- */
 const COLS = [

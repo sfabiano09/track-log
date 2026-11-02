@@ -12,6 +12,8 @@
 <meta name="color-scheme" content="light only">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="../log-view.css">
+<script src="../log-view.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
@@ -101,6 +103,15 @@ header.top{display:flex;align-items:center;gap:12px;padding-block:14px 10px}
 .btn.done-mark{background:var(--surface);color:var(--good);border-color:var(--good)}
 .row .xl.wa::before{background:#25D366}
 body[data-role="view"] .add, body[data-role="view"] #saveEntry, body[data-role="view"] #saveText, body[data-role="view"] #delArea, body[data-role="view"] #importBox{display:none!important}
+.nowbox{margin:0 0 14px}
+.nowbox>summary{list-style:none;display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 2px;min-height:36px}
+.nowbox>summary::-webkit-details-marker{display:none}
+.nowbox>summary::after{content:"Hide";margin-left:auto;font:700 13px/1 var(--display);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:6px 10px;background:var(--surface)}
+.nowbox:not([open])>summary::after{content:"Show"}
+.nowbox .nb-hint{font-size:13px;color:var(--muted)}
+.nowbox[open] .nb-hint{display:none}
+.nowbox .tlv-now{margin-top:4px}
+.nowbox .tlv-now .nowhead .label{visibility:hidden}
 .linkbtn{background:none;border:0;padding:0 0 0 6px;color:inherit;text-decoration:underline;font:inherit;cursor:pointer}
 .empty{padding:28px 6px;color:var(--muted);text-align:center}
 .empty strong{display:block;color:var(--ink);font:700 20px/1.2 var(--display);margin-bottom:6px}
@@ -176,6 +187,11 @@ legend{padding:0;margin-bottom:8px}
   <button data-new="weather"><svg viewBox="0 0 24 24"><circle cx="9" cy="9" r="3.5"/><path d="M9 2v2M2 9h2M4 4l1.4 1.4M14 4l-1.4 1.4M8 20h9a4 4 0 0 0 0-8 5 5 0 0 0-8.6 2.4A3 3 0 0 0 8 20z"/></svg>Weather</button>
   <button data-new="work"><svg viewBox="0 0 24 24"><path d="M14 4l6 6-9 9H5v-6z M12 6l6 6"/></svg>Work</button>
 </div>
+
+<details class="tlv nowbox" id="nowBox" open>
+  <summary><span class="label">Right now</span><span class="nb-hint" id="nowHint"></span></summary>
+  <div id="nowPanel"></div>
+</details>
 
 <div class="list" id="list"></div>
 
@@ -611,8 +627,17 @@ async function getWeather(dateISO,hm){
 }
 
 /* ---------- main screen ---------- */
+function renderNowPanel(){
+  if(!window.TLV)return;
+  const rows=entries.filter(e=>e.event===cfg.track&&e.date===curDate);
+  const d=new Date(),today=curDate===todayISO();
+  $("nowPanel").innerHTML=TLV.rightNow(rows,{now:d.getHours()*60+d.getMinutes(),today});
+  const tr=[...rows].filter(e=>e.track!==undefined&&String(e.track).trim()!=="").sort((a,b)=>(a.time||"").localeCompare(b.time||"")).pop();
+  $("nowHint").textContent=tr?`Track ${tr.track}° at ${time12(tr.time)}`:"";
+}
 function render(){
   if(window.liveResub)liveResub();
+  renderNowPanel();
   $("evTrack").textContent=cfg.track||"Track Log";
   $("evSub").textContent=prettyDate(curDate);
   const dates=[...new Set(entries.filter(e=>e.event===cfg.track).map(e=>e.date).concat([todayISO(),curDate]))].sort();
@@ -1164,6 +1189,9 @@ $("doRestore").onclick=()=>{try{const j=JSON.parse($("s_restore").value);if(!Arr
   const ids=new Set(entries.map(e=>e.id));j.entries.forEach(e=>{if(!ids.has(e.id))entries.push(e)});save();toast("Backup restored");$("restoreArea").hidden=true;render()}
   catch(e){toast("That doesn't look like a Track Log backup.")}};
 
+try{if(localStorage.getItem("tl2.nowOpen")==="0")$("nowBox").open=false}catch(_){}
+$("nowBox").addEventListener("toggle",()=>{try{localStorage.setItem("tl2.nowOpen",$("nowBox").open?"1":"0")}catch(_){}});
+setInterval(()=>{if(curDate===todayISO())renderNowPanel()},30000);
 if("serviceWorker" in navigator&&location.protocol==="https:")navigator.serviceWorker.register("sw.js").catch(()=>{});
 if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});
 render();
