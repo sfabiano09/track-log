@@ -267,7 +267,9 @@ function startEvents() {
     events = list;
     setLive(!meta.fromCache);
     const wanted = (location.hash.slice(1) || "").split(".")[0];
-    if (!curEvent || !events.some(e => e.id === curEvent)) curEvent = (events.find(e => e.id === wanted) || events[0] || {}).id || null;
+    // a race running today opens first, then the one in the link, then the newest
+    if (!curEvent || !events.some(e => e.id === curEvent))
+      curEvent = (events.find(e => (e.dates || []).includes(todayISO())) || events.find(e => e.id === wanted) || events[0] || {}).id || null;
     renderRaces(); openEvent(curEvent);
   }, err => { setLive(false, "Can't load races"); console.error(err); });
 }
@@ -294,11 +296,15 @@ function eventDates() {
   return [...new Set([...(ev.dates || []), ...entries.map(e => e.date)])].filter(Boolean).sort();
 }
 function renderAll(fresh = new Set()) {
-  const dates = eventDates();
+  const dates = eventDates(), today = todayISO();
+  const prev = renderAll.ev === curEvent ? renderAll.dates : null;
   if (!curDate || !dates.includes(curDate)) {
     const want = (location.hash.slice(1) || "").split(".")[1];
-    curDate = dates.includes(want) ? want : dates[dates.length - 1] || null;
+    curDate = dates.includes(today) ? today : dates.includes(want) ? want : dates[dates.length - 1] || null;   // today first
+  } else if (prev && dates.includes(today) && !prev.includes(today) && curDate === prev[prev.length - 1]) {
+    curDate = today;   // a new race day just started: follow it
   }
+  renderAll.ev = curEvent; renderAll.dates = dates;
   $("days").innerHTML = dates.map(d => `<button class="chip" data-date="${d}" aria-pressed="${d === curDate}">${dayLabel(d)} ${+d.slice(8)}</button>`).join("");
   renderSheet(fresh); renderLog(); if (view === "graphs") buildGraphs();
   if (curEvent) history.replaceState(null, "", "#" + curEvent + (curDate ? "." + curDate : ""));
