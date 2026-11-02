@@ -50,6 +50,7 @@ header.top{display:flex;align-items:center;gap:12px;padding-block:14px 10px}
 .days{display:flex;gap:8px;overflow-x:auto;padding-block:4px 12px;scrollbar-width:none}
 .days::-webkit-scrollbar{display:none}
 .chip{flex:none;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:8px 14px;font:600 15px/1 var(--display);letter-spacing:.04em}
+.listhead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:10px 0 4px}
 .chip[aria-pressed="true"]{background:var(--note);border-color:var(--note);color:var(--note-ink)}
 
 .add{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}
@@ -193,6 +194,7 @@ legend{padding:0;margin-bottom:8px}
   <div id="nowPanel"></div>
 </details>
 
+<div class="listhead"><span class="label">Readings</span><button class="chip" id="orderBtn" type="button">Oldest first</button></div>
 <div class="list" id="list"></div>
 
 <div class="bar">
@@ -559,6 +561,9 @@ function excelRow(e){
     return has(v)?String(v).replace(/[\t\r\n]+/g," "):"";
   }).join("\t")+"\t"; // trailing empty X cell: Notes is merged W:X in the day tabs, so the paste must cover both
 }
+// list order: oldest or newest on top (remembered on this phone)
+let newestFirst=(()=>{try{return localStorage.getItem("tl2.newest")==="1"}catch(_){return false}})();
+$("orderBtn").onclick=()=>{newestFirst=!newestFirst;try{localStorage.setItem("tl2.newest",newestFirst?"1":"0")}catch(_){}render()};
 function dayEntries(iso){return entries.filter(e=>e.date===iso&&e.event===cfg.track).sort((a,b)=>(a.time||"").localeCompare(b.time||""))}
 
 /* ---------- text message ---------- */
@@ -643,7 +648,8 @@ function render(){
   const dates=[...new Set(entries.filter(e=>e.event===cfg.track).map(e=>e.date).concat([todayISO(),curDate]))].sort();
   $("days").innerHTML=dates.map(d=>`<button class="chip" data-date="${d}" aria-pressed="${d===curDate}">${dayLabel(d)} ${Number(d.slice(8))}</button>`).join("");
   const rows=dayEntries(curDate);
-  $("list").innerHTML = rows.length? rows.map(rowHTML).join("") :
+  $("orderBtn").textContent=newestFirst?"Newest first":"Oldest first";
+  $("list").innerHTML = rows.length? (newestFirst?rows.slice().reverse():rows).map(rowHTML).join("") :
     `<div class="empty"><strong>No readings yet for ${dayLabel(curDate)}</strong>Tap Run, Track, Weather or Work above to log the first one.</div>`;
   $("barInfo").textContent = window.LIVE&&LIVE.role ? liveStatus() : spConfigured(cfg.track)? syncSummary() : rows.length? `${rows.length} row${rows.length>1?"s":""} · paste into Z1 of the ${dayLabel(curDate)} tab` : "Saves copy the day for Excel";
   $("copyDay").disabled=!rows.length;
