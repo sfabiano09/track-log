@@ -200,12 +200,13 @@
       const front = [["slKeg", "SL"], ["k10", "10'"], ["k60", "60'"]];
       const anyKeg = STATIONS.some(([k]) => has(e[k]));
       const ex1 = items(e, [["Push", "push"], ["SL Sticky", "slSticky"], ["SL Loc", "slLoc"]]), ex2 = items(e, [["TP Sticky", "sticky"], ["Nate", "nate"]]);
-      const cond = (has(e.track) || w1 || w2) ? `<div class="tlv-cond">${temp(e)}${w1 ? `<div class="wx">${w1}</div>` : ""}${w2 ? `<div class="wx">${w2}</div>` : ""}</div>` : "";
-      const kegs = (anyKeg || ex1 || ex2) ? `<div class="tlv-kegs">
-        <div class="tlv-kg"><div class="tlv-boxes">${front.map(([k, l]) => kbox(e, k, l)).join("")}</div>${ex1 ? `<div class="tlv-ex">${ex1}</div>` : ""}</div>
-        ${has(e.k80) ? `<div class="tlv-kg"><div class="tlv-boxes">${kbox(e, "k80", "80'")}</div></div>` : ""}
-        <div class="tlv-kg"><div class="tlv-boxes two">${kbox(e, "k125", "125'")}${kbox(e, "k330", "330'")}</div>${ex2 ? `<div class="tlv-ex">${ex2}</div>` : ""}</div></div>` : "";
-      return cond || kegs ? `<div class="tlv-g2">${cond}${kegs}</div>` : "";
+      // two lines that line up: temp + KEG boxes on top, weather + each box's readings underneath (--c = column)
+      const cond = `<div class="tlv-cond"><div class="c-top c-temp" style="--c:1">${temp(e)}</div>
+        <div class="c-bot c-wx" style="--c:1">${w1 ? `<div class="wx">${w1}</div>` : ""}${w2 ? `<div class="wx">${w2}</div>` : ""}</div></div>`;
+      let c = 1;
+      const group = (boxes, ex, cls = "") => { c++; return `<div class="tlv-kg"><div class="tlv-boxes c-top ${cls}" style="--c:${c}">${boxes}</div><div class="tlv-ex c-bot" style="--c:${c}">${ex}</div></div>`; };
+      const kegs = (anyKeg || ex1 || ex2) ? `<div class="tlv-kegs">${group(front.map(([k, l]) => kbox(e, k, l)).join(""), ex1)}${has(e.k80) ? group(kbox(e, "k80", "80'"), "") : ""}${group(kbox(e, "k125", "125'") + kbox(e, "k330", "330'"), ex2)}</div>` : "";
+      return (has(e.track) || w1 || w2 || kegs) ? `<div class="tlv-g2">${cond}${kegs}</div>` : "";
     };
     const extras = e => { const x = []; const add = (lab, k) => { if (has(e[k])) x.push(`${lab} <b>${esc(e[k])}</b>`); };
       add("SL Sticky", "slSticky"); add("Sticky", "sticky"); add("Push", "push"); add("Nate", "nate"); add("SL loc", "slLoc");

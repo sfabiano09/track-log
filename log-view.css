@@ -114,6 +114,19 @@
 .tlv-boxes .tlv-st.none{background:#F6F7F8}
 .tlv-st .dl.same{color:var(--tlv-soft)}
 .tlv-boxes .tlv-st .s{margin-bottom:1px}
+.tlv-ex:empty,.c-wx:empty,.c-temp:empty{display:none}
+/* when the card is wide enough: one grid so the temp lines up with the KEG boxes and the weather with the readings under them */
+.tlv-e .body{container-type:inline-size}
+@container (min-width:540px){
+  .tlv-g2{display:grid;grid-template-rows:auto auto;column-gap:16px;row-gap:6px;justify-content:start;align-items:start}
+  .tlv-g2 .tlv-cond,.tlv-g2 .tlv-kegs,.tlv-g2 .tlv-kg{display:contents}
+  .tlv-g2 .c-top{grid-row:1;grid-column:var(--c)}
+  .tlv-g2 .c-bot{grid-row:2;grid-column:var(--c)}
+  .tlv-g2 .tlv-ex.c-bot{width:0;min-width:100%}          /* readings wrap inside their box's width */
+  .tlv-g2 .c-temp{align-self:stretch;display:flex}
+  .tlv-g2 .c-temp .tlv-temp{align-self:stretch;align-items:center;padding-top:0;padding-bottom:0;padding-right:10px}
+  .tlv-ex:empty,.c-wx:empty,.c-temp:empty{display:block}
+}
 .tlv-ex{display:flex;flex-wrap:wrap;gap:2px 12px;font-size:13px;color:var(--tlv-muted)}
 .tlv-ex b{color:var(--tlv-ink);font-weight:600}
 .tlv-extras{display:flex;gap:4px 14px;flex-wrap:wrap;font-size:13px;margin-top:5px;color:var(--tlv-muted)}
