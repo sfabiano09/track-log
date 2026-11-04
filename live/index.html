@@ -53,7 +53,7 @@ header.top{display:flex;align-items:center;gap:12px;padding-block:14px 10px}
 .listhead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:10px 0 4px}
 .chip[aria-pressed="true"]{background:var(--note);border-color:var(--note);color:var(--note-ink)}
 
-.add{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}
+.add{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
 .add button{border:0;border-radius:var(--r);background:var(--note);color:var(--note-ink);padding:14px 4px 12px;display:flex;flex-direction:column;align-items:center;gap:6px;font:700 16px/1 var(--display);letter-spacing:.04em;text-transform:uppercase;box-shadow:0 1px 0 rgba(0,0,0,.12)}
 .add button svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:2}
 .add button:active{transform:translateY(1px)}
@@ -185,7 +185,6 @@ legend{padding:0;margin-bottom:8px}
 <div class="add">
   <button data-new="run"><svg viewBox="0 0 24 24"><path d="M4 18h16M6 18l2-6h8l2 6M9 12V8h6v4"/></svg>Run</button>
   <button data-new="track"><svg viewBox="0 0 24 24"><path d="M12 3v18M5 7h4M5 12h4M5 17h4M15 7h4M15 12h4M15 17h4"/></svg>Track</button>
-  <button data-new="weather"><svg viewBox="0 0 24 24"><circle cx="9" cy="9" r="3.5"/><path d="M9 2v2M2 9h2M4 4l1.4 1.4M14 4l-1.4 1.4M8 20h9a4 4 0 0 0 0-8 5 5 0 0 0-8.6 2.4A3 3 0 0 0 8 20z"/></svg>Weather</button>
   <button data-new="work"><svg viewBox="0 0 24 24"><path d="M14 4l6 6-9 9H5v-6z M12 6l6 6"/></svg>Work</button>
 </div>
 
