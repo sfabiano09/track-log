@@ -182,6 +182,29 @@
         return `<div class="tlv-st"><div class="n">${v}</div><div class="s">${lab}</div>${dl}</div>`;
       }).join("")}</div>`;
     };
+    // one KEG box: spot on top, number, change from the last reading in the same lane
+    const kbox = (e, k, lab) => {
+      const raw = e[k], v = num(raw);
+      if (!has(raw)) return `<div class="tlv-st none"><div class="s">${lab}</div><div class="n">—</div></div>`;
+      if (v == null) return `<div class="tlv-st txt"><div class="s">${lab}</div><div class="n">${esc(raw)}</div></div>`;
+      const p = prevSame(e, k); let dl = "";
+      if (p) { const d = v - num(p[k]); if (d) dl = `<div class="dl ${d > 0 ? "up" : "down"}">${d > 0 ? "▲" : "▼"}${Math.abs(+d.toFixed(2))}</div>`; }
+      return `<div class="tlv-st"><div class="s">${lab}</div><div class="n">${v}</div>${dl}</div>`;
+    };
+    const items = (e, list) => list.filter(([, k]) => has(e[k])).map(([lab, k]) => `<span>${lab} <b>${esc(e[k])}</b></span>`).join("");
+    // the card body as sketched: temp + weather on the left, KEG in two groups with their readings underneath
+    const card = e => {
+      const w1 = [["Air", "air", "°"], ["UV", "uv", ""]].filter(([, k]) => has(e[k])).map(([l, k, u]) => `${l} <b>${esc(e[k])}${u}</b>`).join(" · ");
+      const w2 = [["Solar", "solar", ""], ["CC", "cc", "%"]].filter(([, k]) => has(e[k])).map(([l, k, u]) => `${l} <b>${esc(e[k])}${u}</b>`).join(" · ");
+      const front = [["slKeg", "SL"], ["k10", "10'"], ["k60", "60'"]].concat(has(e.k80) ? [["k80", "80'"]] : []);
+      const anyKeg = STATIONS.some(([k]) => has(e[k]));
+      const ex1 = items(e, [["Push", "push"], ["SL Sticky", "slSticky"], ["SL Loc", "slLoc"]]), ex2 = items(e, [["TP Sticky", "sticky"], ["Nate", "nate"]]);
+      const cond = (has(e.track) || w1 || w2) ? `<div class="tlv-cond">${temp(e)}${w1 ? `<div class="wx">${w1}</div>` : ""}${w2 ? `<div class="wx">${w2}</div>` : ""}</div>` : "";
+      const kegs = (anyKeg || ex1 || ex2) ? `<div class="tlv-kegs">
+        <div class="tlv-kg"><div class="tlv-boxes">${front.map(([k, l]) => kbox(e, k, l)).join("")}</div>${ex1 ? `<div class="tlv-ex">${ex1}</div>` : ""}</div>
+        <div class="tlv-kg"><div class="tlv-boxes">${kbox(e, "k125", "125'")}${kbox(e, "k330", "330'")}</div>${ex2 ? `<div class="tlv-ex">${ex2}</div>` : ""}</div></div>` : "";
+      return cond || kegs ? `<div class="tlv-g2">${cond}${kegs}</div>` : "";
+    };
     const extras = e => { const x = []; const add = (lab, k) => { if (has(e[k])) x.push(`${lab} <b>${esc(e[k])}</b>`); };
       add("SL Sticky", "slSticky"); add("Sticky", "sticky"); add("Push", "push"); add("Nate", "nate"); add("SL loc", "slLoc");
       return x.length ? `<div class="tlv-extras">${x.join("")}</div>` : ""; };
@@ -195,11 +218,10 @@
       if (e.type === "weather") return `<div class="tlv-e weather${pend}"><div><span class="t">${short(e.m)}</span></div><div class="body"><div class="head">Weather ${temp(e)}<span class="meta">${wx(e)}</span></div>${e.notes ? `<div class="note">${esc(e.notes)}</div>` : ""}</div></div>`;
       if (e.type === "run") { const n = plainNotes(e);
         return `<div class="tlv-e run${pend}"><div><span class="t">${short(e.m)}</span><span class="ty">Run</span>${bigLane(e)}</div><div class="body">
-          <div class="head">${has(e.run) ? `<span class="tlv-tag">${esc(e.run)}</span>` : ""}<span class="tlv-car ${carCls(e.car)}">${esc(e.car)}</span>${temp(e)}<span class="tlv-result">${esc(result(e))}</span></div>
-          <div class="meta">${wx(e)}</div>${strip(e)}${extras(e)}${n ? `<div class="note">${esc(n)}</div>` : ""}</div></div>`; }
+          <div class="head">${has(e.run) ? `<span class="tlv-tag">${esc(e.run)}</span>` : ""}<span class="tlv-car ${carCls(e.car)}">${esc(e.car)}</span><span class="tlv-result">${esc(result(e))}</span></div>
+          ${card(e)}${n ? `<div class="note">${esc(n)}</div>` : ""}</div></div>`; }
       return `<div class="tlv-e${pend}"><div><span class="t">${short(e.m)}</span><span class="ty">Track</span>${bigLane(e)}</div><div class="body">
-        <div class="head">${temp(e)}<span class="meta">${wx(e)}</span></div>
-        ${strip(e)}${extras(e)}${e.notes ? `<div class="note">${esc(e.notes)}</div>` : ""}</div></div>`;
+        ${card(e)}${e.notes ? `<div class="note">${esc(e.notes)}</div>` : ""}</div></div>`;
     }).join("")}</div>`;
   }
   window.TLV = { rightNow, log, toMin, conditions, similar, carCls };

@@ -96,6 +96,20 @@
 .tlv-st.dark{color:#fff}
 .tlv .up{color:var(--tlv-up)} .tlv .down{color:var(--tlv-down)}
 .tlv-st.dark .up{color:#B9F3CF} .tlv-st.dark .down{color:#FFC2BB}
+/* log card: temp + weather | KEG groups */
+.tlv-g2{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:flex-start;margin-top:6px}
+.tlv-cond{display:flex;flex-direction:column;gap:3px;min-width:132px}
+.tlv-cond .tlv-temp{align-self:flex-start}
+.tlv-cond .tlv-temp b{font-size:30px}
+.tlv-cond .wx{font-size:13.5px;color:var(--tlv-muted);white-space:nowrap}
+.tlv-cond .wx b{color:var(--tlv-ink);font-weight:600}
+.tlv-kegs{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:flex-start}
+.tlv-kg{display:flex;flex-direction:column;gap:5px}
+.tlv-boxes{display:grid;grid-auto-flow:column;grid-auto-columns:60px;gap:3px}
+.tlv-boxes .tlv-st{padding:3px 1px}
+.tlv-boxes .tlv-st .s{margin-bottom:1px}
+.tlv-ex{display:flex;flex-wrap:wrap;gap:2px 12px;font-size:13px;color:var(--tlv-muted)}
+.tlv-ex b{color:var(--tlv-ink);font-weight:600}
 .tlv-extras{display:flex;gap:4px 14px;flex-wrap:wrap;font-size:13px;margin-top:5px;color:var(--tlv-muted)}
 .tlv-extras b{color:var(--tlv-ink);font-weight:600}
 .tlv-biglane{display:flex;align-items:center;justify-content:center;width:44px;height:44px;margin-top:8px;border-radius:8px;border:2.5px solid var(--tlv-ink);font:700 30px/1 var(--tlv-display);color:var(--tlv-ink)}
