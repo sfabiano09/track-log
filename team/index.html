@@ -105,6 +105,8 @@ tr.pending td.c-time::after{content:" ⟳";color:var(--warn)}
 .g-key b{color:var(--ink)}
 .g-sw{display:inline-block;width:0;height:14px;border-left:2px solid var(--ink);margin-right:6px;vertical-align:-2px}
 .g-sw.dash{border-left-style:dashed;opacity:.7}
+.g-panel svg text.runlbl{font-weight:700;fill:#0032FF;font-size:11px}
+.g-sw.austin{border-left:3px solid #0032FF}
 .g-panel svg text.gap{font-weight:700;fill:#3E454C;paint-order:stroke;stroke:#fff;stroke-width:3px;stroke-linejoin:round}
 .g-readout{position:sticky;top:env(safe-area-inset-top,0);z-index:3;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:10px;min-height:54px}
 .g-readout .t{font:700 17px/1.1 var(--display)}
@@ -219,7 +221,7 @@ tr.pending td.c-time::after{content:" ⟳";color:var(--warn)}
         <button class="chip" data-glane="L" aria-pressed="false">Left</button>
         <button class="chip" data-glane="R" aria-pressed="false">Right</button>
       </div>
-      <div class="g-key"><span><span class="g-sw"></span><b>Scrape</b></span><span><span class="g-sw dash"></span><b>Spray</b></span></div>
+      <div class="g-key"><span><span class="g-sw"></span><b>Scrape</b></span><span><span class="g-sw dash"></span><b>Spray</b></span><span><span class="g-sw austin"></span><b>Austin run</b></span></div>
     </div>
     <div class="g-readout" id="gReadout" aria-live="polite"><div class="who">Touch or hover over a chart to see the readings at that time.</div></div>
     <div class="g-grid" id="gPanels"></div>
@@ -425,8 +427,8 @@ const G_PANELS = [
   { title: "Push (10 ft)", unit: "", lane: true, series: [{ k: "push", name: "Push", c: "--s3" }] },
   { title: "Nate", unit: "", lane: true, series: [{ k: "nate", name: "Nate", c: "--s6" }] },
 ];
-let gLane = "all", gBuilt = [], gEvents = [], gX0 = 0, gX1 = 1;
-const G = { W: 360, L: 46, R: 64, T: 10, B: 24, H: 280 };
+let gLane = "all", gBuilt = [], gEvents = [], gRuns = [], gX0 = 0, gX1 = 1;
+const G = { W: 360, L: 46, R: 64, T: 22, B: 24, H: 290 };   // T leaves room for the run names on top
 const gMin = t => { const [h, m] = (t || "0:0").split(":").map(Number); return h * 60 + m; };
 const gNum = v => { if (v === "" || v == null) return null; const n = Number(v); return isFinite(n) ? n : null; };
 const gx = m => G.L + (m - gX0) / (gX1 - gX0) * (G.W - G.L - G.R);
@@ -442,6 +444,9 @@ function buildGraphs() {
   if (!day.length) { host.innerHTML = '<div class="g-none">Graphs appear once the day has readings.</div>'; return; }
   const mins = day.map(e => gMin(e.time)); gX0 = Math.floor(Math.min(...mins) / 60) * 60; gX1 = Math.max(gX0 + 60, Math.ceil(Math.max(...mins) / 60) * 60);
   gEvents = day.filter(e => e.type === "work" && (e.work === "Scrape" || e.work === "Spray")).map(e => ({ m: gMin(e.time), w: e.work, notes: e.notes || "" }));
+  // Austin's runs: a blue line with the run name at the top of each chart
+  gRuns = day.filter(e => e.type === "run" && TLV.carCls(e.car) === "austin" && has(e.time))
+    .map(e => ({ m: gMin(e.time), run: e.run || "Run", lane: e.lane || "", res: TLV.result(e) }));
   for (const p of G_PANELS) {
     const series = p.series.map(s => ({ ...s, col: gcss(s.c), pts: day.filter(e => !p.lane || gLane === "all" || e.lane === gLane)
       .map(e => ({ m: gMin(e.time), v: gNum(e[s.k]) })).filter(d => d.v != null) }));
@@ -463,6 +468,8 @@ function buildGraphs() {
       gel("line", { x1: gx(m), x2: gx(m), y1: G.H - G.B, y2: G.H - G.B + 3, stroke: gcss("--axis") }, svg);
       gel("text", { x: gx(m), y: G.H - 5, "text-anchor": "middle" }, svg).textContent = (m === gX0 || m === gX1) ? h12 + (hr < 12 ? "am" : "pm") : String(h12); }
     for (const ev of gEvents) gel("line", { x1: gx(ev.m), x2: gx(ev.m), y1: G.T, y2: G.H - G.B, stroke: "#0B0D0F", "stroke-opacity": ev.w === "Scrape" ? .55 : .4, "stroke-width": 1.5, "stroke-dasharray": ev.w === "Spray" ? "4 3" : "" }, svg);
+    for (const r of gRuns) { gel("line", { x1: gx(r.m), x2: gx(r.m), y1: G.T - 4, y2: G.H - G.B, stroke: "#0032FF", "stroke-opacity": .75, "stroke-width": 2 }, svg);
+      gel("text", { x: gx(r.m), y: G.T - 8, "text-anchor": "middle", class: "runlbl" }, svg).textContent = r.run; }
     // Track minus Air wherever both were read at the same time: a light line between the two points and the gap
     const gaps = p.diff ? day.map(e => ({ m: gMin(e.time), t: gNum(e.track), a: gNum(e.air) })).filter(d => d.t != null && d.a != null) : [];
     let lastLbl = -1e9;
@@ -494,7 +501,8 @@ function gHover(m) {
       if (d) { dot.setAttribute("cx", gx(d.m)); dot.setAttribute("cy", b.ys(d.v)); dot.setAttribute("visibility", "visible"); out.push(`<span><i style="background:${s.col}"></i>${esc(s.name)} <b>${d.v.toLocaleString()}</b></span>`); }
       else dot.setAttribute("visibility", "hidden"); });
     const gp = near(b.gaps || []); if (gp) out.push(`<span>Track − Air <b>${gp.t - gp.a > 0 ? "+" : ""}${Math.round((gp.t - gp.a) * 10) / 10}°</b></span>`); }
-  const ev = gEvents.filter(e => Math.abs(e.m - m) <= 10).map(e => `<span><b>${e.w}</b> ${gFmt(e.m)}${e.notes ? " · " + esc(e.notes) : ""}</span>`);
+  const ev = gEvents.filter(e => Math.abs(e.m - m) <= 10).map(e => `<span><b>${e.w}</b> ${gFmt(e.m)}${e.notes ? " · " + esc(e.notes) : ""}</span>`)
+    .concat(gRuns.filter(r => Math.abs(r.m - m) <= 10).map(r => `<span><b style="color:#0032FF">Austin ${esc(r.run)}</b> ${gFmt(r.m)}${r.lane ? " · " + esc(r.lane) + " lane" : ""}${r.res ? " · " + esc(r.res) : ""}</span>`));
   $("gReadout").innerHTML = `<div class="t">${gFmt(m)}</div><div class="vals">${out.join("") || '<span class="who">No readings within 25 min</span>'}${ev.join("")}</div>`;
 }
 let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(buildGraphs, 200); });

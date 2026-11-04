@@ -229,5 +229,5 @@
         ${card(e)}${e.notes ? `<div class="note">${esc(e.notes)}</div>` : ""}</div></div>`;
     }).join("")}</div>`;
   }
-  window.TLV = { rightNow, log, toMin, conditions, similar, carCls };
+  window.TLV = { rightNow, log, toMin, conditions, similar, carCls, result };
 })();
