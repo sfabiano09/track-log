@@ -185,10 +185,11 @@
     // one KEG box: spot on top, number, change from the last reading in the same lane
     const kbox = (e, k, lab) => {
       const raw = e[k], v = num(raw);
-      if (!has(raw)) return `<div class="tlv-st none"><div class="s">${lab}</div><div class="n">—</div></div>`;
-      if (v == null) return `<div class="tlv-st txt"><div class="s">${lab}</div><div class="n">${esc(raw)}</div></div>`;
-      const p = prevSame(e, k); let dl = "";
-      if (p) { const d = v - num(p[k]); if (d) dl = `<div class="dl ${d > 0 ? "up" : "down"}">${d > 0 ? "▲" : "▼"}${Math.abs(+d.toFixed(2))}</div>`; }
+      if (!has(raw)) return `<div class="tlv-st none"><div class="s">${lab}</div><div class="n">—</div><div class="dl">&nbsp;</div></div>`;
+      if (v == null) return `<div class="tlv-st txt"><div class="s">${lab}</div><div class="n">${esc(raw)}</div><div class="dl">&nbsp;</div></div>`;
+      // change from the last reading in the same lane: ▲/▼, ±0 when unchanged, blank for the lane's first reading
+      const p = prevSame(e, k); let dl = `<div class="dl">&nbsp;</div>`;
+      if (p) { const d = v - num(p[k]); dl = d ? `<div class="dl ${d > 0 ? "up" : "down"}">${d > 0 ? "▲" : "▼"}${Math.abs(+d.toFixed(2))}</div>` : `<div class="dl same">±0</div>`; }
       return `<div class="tlv-st"><div class="s">${lab}</div><div class="n">${v}</div>${dl}</div>`;
     };
     const items = (e, list) => list.filter(([, k]) => has(e[k])).map(([lab, k]) => `<span>${lab} <b>${esc(e[k])}</b></span>`).join("");
@@ -203,7 +204,7 @@
       const kegs = (anyKeg || ex1 || ex2) ? `<div class="tlv-kegs">
         <div class="tlv-kg"><div class="tlv-boxes">${front.map(([k, l]) => kbox(e, k, l)).join("")}</div>${ex1 ? `<div class="tlv-ex">${ex1}</div>` : ""}</div>
         ${has(e.k80) ? `<div class="tlv-kg"><div class="tlv-boxes">${kbox(e, "k80", "80'")}</div></div>` : ""}
-        <div class="tlv-kg"><div class="tlv-boxes">${kbox(e, "k125", "125'")}${kbox(e, "k330", "330'")}</div>${ex2 ? `<div class="tlv-ex">${ex2}</div>` : ""}</div></div>` : "";
+        <div class="tlv-kg"><div class="tlv-boxes two">${kbox(e, "k125", "125'")}${kbox(e, "k330", "330'")}</div>${ex2 ? `<div class="tlv-ex">${ex2}</div>` : ""}</div></div>` : "";
       return cond || kegs ? `<div class="tlv-g2">${cond}${kegs}</div>` : "";
     };
     const extras = e => { const x = []; const add = (lab, k) => { if (has(e[k])) x.push(`${lab} <b>${esc(e[k])}</b>`); };
