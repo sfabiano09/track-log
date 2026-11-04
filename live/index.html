@@ -153,6 +153,9 @@ legend{padding:0;margin-bottom:8px}
 .station.wide,.station.wide2{grid-column:1/-1}
 .station.wide .picks{flex-wrap:wrap}
 .picks{display:flex;flex-wrap:wrap;gap:6px}
+.top3{display:flex;flex-direction:column;gap:12px}
+.top3 .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.lanelab{display:block;margin-bottom:6px}
 .pick{border:1px solid var(--line);background:var(--surface);border-radius:8px;min-width:48px;min-height:44px;padding:8px 10px;font:700 17px/1 var(--display);letter-spacing:.03em}
 .pick[aria-pressed="true"]{background:var(--note);color:var(--note-ink);border-color:var(--note)}
 .picks.small .pick{min-width:40px;min-height:38px;font-size:15px;padding:6px 8px}
@@ -210,16 +213,15 @@ legend{padding:0;margin-bottom:8px}
     <button class="iconbtn" id="closeForm" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   </header>
 
-  <fieldset>
-    <div class="grid">
-      <div class="f"><label for="f_time">Time</label><input id="f_time" type="time"></div>
-      <div class="f" data-show="run work track"><label for="f_run">Run</label><select id="f_run"></select></div>
-      <div class="f" data-show="run track work"><label for="f_lane">Lane</label><select id="f_lane"></select></div>
-    </div>
+  <fieldset class="top3">
+    <div class="grid"><div class="f"><label for="f_time">Time</label><input id="f_time" type="time"></div></div>
+    <div class="f"><span class="label lanelab">Lane</span><div class="picks" id="lanePicks"></div><input type="hidden" id="f_lane"></div>
+    <div class="grid"><div class="f"><label for="f_track">Track °F</label><input id="f_track" inputmode="decimal"></div></div>
   </fieldset>
 
   <fieldset data-show="run">
-    <legend class="label">Car</legend>
+    <div class="grid"><div class="f"><label for="f_run">Run</label><select id="f_run"></select></div></div>
+    <span class="label" style="display:block;margin:12px 0 8px">Car</span>
     <div class="picks" id="carPicks"></div>
   </fieldset>
 
@@ -235,7 +237,6 @@ legend{padding:0;margin-bottom:8px}
       <div class="f"><label for="f_solar">Solar</label><input id="f_solar" inputmode="decimal"></div>
       <div class="f"><label for="f_cc">Cloud %</label><input id="f_cc" inputmode="decimal"></div>
       <div class="f"><label for="f_air">Air °F</label><input id="f_air" inputmode="decimal"></div>
-      <div class="f"><label for="f_track">Track °F</label><input id="f_track" inputmode="decimal"></div>
     </div>
     <div class="status" id="wxStatus" aria-live="polite"></div>
   </fieldset>
@@ -684,8 +685,9 @@ function openForm(type,entry){
   type=editing.type;
   $("formTitle").textContent=(entry?"Edit ":"New ")+TYPE_NAME[type].toLowerCase();
   document.querySelectorAll("#form [data-show]").forEach(el=>el.hidden=!el.dataset.show.split(" ").includes(type));
-  fill($("f_run"),RUNS);fill($("f_lane"),LANES);
+  fill($("f_run"),RUNS);
   FIELDS.forEach(f=>{const el=$("f_"+f);if(el){el.value=editing[f]??"";el.classList.remove("auto")}});
+  picks($("lanePicks"),LANES.filter(Boolean),editing.lane||"",v=>{$("f_lane").value=v});   // tap a lane; tap again to clear
   picks($("carPicks"),list(cfg.cars),editing.car,v=>editing.car=v);
   picks($("workPicks"),list(cfg.work),editing.work,v=>editing.work=v);
   document.querySelectorAll("#form [data-grade]").forEach(el=>{const k=el.dataset.grade;picks(el,GRADES,editing[k],v=>editing[k]=v)});
