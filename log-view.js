@@ -196,12 +196,13 @@
     const card = e => {
       const w1 = [["Air", "air", "°"], ["UV", "uv", ""]].filter(([, k]) => has(e[k])).map(([l, k, u]) => `${l} <b>${esc(e[k])}${u}</b>`).join(" · ");
       const w2 = [["Solar", "solar", ""], ["CC", "cc", "%"]].filter(([, k]) => has(e[k])).map(([l, k, u]) => `${l} <b>${esc(e[k])}${u}</b>`).join(" · ");
-      const front = [["slKeg", "SL"], ["k10", "10'"], ["k60", "60'"]].concat(has(e.k80) ? [["k80", "80'"]] : []);
+      const front = [["slKeg", "SL"], ["k10", "10'"], ["k60", "60'"]];
       const anyKeg = STATIONS.some(([k]) => has(e[k]));
       const ex1 = items(e, [["Push", "push"], ["SL Sticky", "slSticky"], ["SL Loc", "slLoc"]]), ex2 = items(e, [["TP Sticky", "sticky"], ["Nate", "nate"]]);
       const cond = (has(e.track) || w1 || w2) ? `<div class="tlv-cond">${temp(e)}${w1 ? `<div class="wx">${w1}</div>` : ""}${w2 ? `<div class="wx">${w2}</div>` : ""}</div>` : "";
       const kegs = (anyKeg || ex1 || ex2) ? `<div class="tlv-kegs">
         <div class="tlv-kg"><div class="tlv-boxes">${front.map(([k, l]) => kbox(e, k, l)).join("")}</div>${ex1 ? `<div class="tlv-ex">${ex1}</div>` : ""}</div>
+        ${has(e.k80) ? `<div class="tlv-kg"><div class="tlv-boxes">${kbox(e, "k80", "80'")}</div></div>` : ""}
         <div class="tlv-kg"><div class="tlv-boxes">${kbox(e, "k125", "125'")}${kbox(e, "k330", "330'")}</div>${ex2 ? `<div class="tlv-ex">${ex2}</div>` : ""}</div></div>` : "";
       return cond || kegs ? `<div class="tlv-g2">${cond}${kegs}</div>` : "";
     };
@@ -217,10 +218,10 @@
       if (e.type === "work") return `<div class="tlv-work ${String(e.work || "").toLowerCase()}"><span class="wt">${short(e.m)}</span><span class="wl">${esc(e.work)}</span><span class="wn">${esc(e.notes || "")}</span></div>`;
       if (e.type === "weather") return `<div class="tlv-e weather${pend}"><div><span class="t">${short(e.m)}</span></div><div class="body"><div class="head">Weather ${temp(e)}<span class="meta">${wx(e)}</span></div>${e.notes ? `<div class="note">${esc(e.notes)}</div>` : ""}</div></div>`;
       if (e.type === "run") { const n = plainNotes(e);
-        return `<div class="tlv-e run${pend}"><div><span class="t">${short(e.m)}</span><span class="ty">Run</span>${bigLane(e)}</div><div class="body">
+        return `<div class="tlv-e run${pend}"><div><span class="t">${short(e.m)}</span>${bigLane(e)}</div><div class="body">
           <div class="head">${has(e.run) ? `<span class="tlv-tag">${esc(e.run)}</span>` : ""}<span class="tlv-car ${carCls(e.car)}">${esc(e.car)}</span><span class="tlv-result">${esc(result(e))}</span></div>
           ${card(e)}${n ? `<div class="note">${esc(n)}</div>` : ""}</div></div>`; }
-      return `<div class="tlv-e${pend}"><div><span class="t">${short(e.m)}</span><span class="ty">Track</span>${bigLane(e)}</div><div class="body">
+      return `<div class="tlv-e${pend}"><div><span class="t">${short(e.m)}</span>${bigLane(e)}</div><div class="body">
         ${card(e)}${e.notes ? `<div class="note">${esc(e.notes)}</div>` : ""}</div></div>`;
     }).join("")}</div>`;
   }
