@@ -112,7 +112,6 @@
 .tlv-boxes .tlv-st{padding:4px 1px 5px;border:0;border-radius:0;background:transparent}
 .tlv-boxes .tlv-st+.tlv-st{border-left:1px solid var(--tlv-hair)}
 .tlv-boxes .tlv-st.none{background:#F6F7F8}
-.tlv-boxes.two{grid-auto-columns:93px}   /* 125/330 box as wide as the SL/10/60 box */
 .tlv-st .dl.same{color:var(--tlv-soft)}
 .tlv-boxes .tlv-st .s{margin-bottom:1px}
 .tlv-ex{display:flex;flex-wrap:wrap;gap:2px 12px;font-size:13px;color:var(--tlv-muted)}
