@@ -192,14 +192,16 @@
       if (p) { const d = v - num(p[k]); dl = d ? `<div class="dl ${d > 0 ? "up" : "down"}">${d > 0 ? "▲" : "▼"}${Math.abs(+d.toFixed(2))}</div>` : `<div class="dl same">±0</div>`; }
       return `<div class="tlv-st"><div class="s">${lab}</div><div class="n">${v}</div>${dl}</div>`;
     };
-    const items = (e, list) => list.filter(([, k]) => has(e[k])).map(([lab, k]) => `<span>${lab} <b>${esc(e[k])}</b></span>`).join("");
+    // readings under a KEG box, one line per group, a dot between readings on the same line
+    const items = (e, lines) => lines.map(l => l.filter(([, k]) => has(e[k])).map(([lab, k]) => `<span>${lab} <b>${esc(e[k])}</b></span>`).join(" · "))
+      .filter(Boolean).map(l => `<div>${l}</div>`).join("");
     // the card body as sketched: temp + weather on the left, KEG in two groups with their readings underneath
     const card = e => {
       const w1 = [["Air", "air", "°"], ["UV", "uv", ""]].filter(([, k]) => has(e[k])).map(([l, k, u]) => `${l} <b>${esc(e[k])}${u}</b>`).join(" · ");
       const w2 = [["Solar", "solar", ""], ["CC", "cc", "%"]].filter(([, k]) => has(e[k])).map(([l, k, u]) => `${l} <b>${esc(e[k])}${u}</b>`).join(" · ");
       const front = [["slKeg", "SL"], ["k10", "10'"], ["k60", "60'"]];
       const anyKeg = STATIONS.some(([k]) => has(e[k]));
-      const ex1 = items(e, [["Push", "push"], ["SL Sticky", "slSticky"], ["SL Loc", "slLoc"]]), ex2 = items(e, [["TP Sticky", "sticky"], ["Nate", "nate"]]);
+      const ex1 = items(e, [[["Push", "push"], ["SL Sticky", "slSticky"]], [["SL Loc", "slLoc"]]]), ex2 = items(e, [[["TP Sticky", "sticky"]], [["Nate", "nate"]]]);
       // two lines that line up: temp + KEG boxes on top, weather + each box's readings underneath (--c = column)
       const cond = `<div class="tlv-cond"><div class="c-top c-temp" style="--c:1">${temp(e)}</div>
         <div class="c-bot c-wx" style="--c:1">${w1 ? `<div class="wx">${w1}</div>` : ""}${w2 ? `<div class="wx">${w2}</div>` : ""}</div></div>`;

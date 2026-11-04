@@ -105,8 +105,9 @@
 .tlv-cond .wx b{color:var(--tlv-ink);font-weight:600}
 .tlv-kegs{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:flex-start}
 .tlv-kg{display:flex;flex-direction:column;gap:5px;width:min-content}   /* readings stay under their own KEG box and wrap within its width */
-.tlv-kg .tlv-ex{gap:2px 10px}
+.tlv-kg .tlv-ex{display:block;text-align:center;line-height:1.5}   /* readings centered under their KEG box, split by dots */
 .tlv-kg .tlv-ex span{white-space:nowrap}
+.tlv-ex:empty{display:none}
 /* each KEG group is one box, with a thin line between spots */
 .tlv-boxes{display:grid;grid-auto-flow:column;grid-auto-columns:62px;background:#fff;border:1.5px solid #AEB4BA;border-radius:8px;overflow:hidden}
 .tlv-boxes .tlv-st{padding:4px 1px 5px;border:0;border-radius:0;background:transparent}
