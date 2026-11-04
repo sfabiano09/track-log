@@ -220,9 +220,7 @@ legend{padding:0;margin-bottom:8px}
   </fieldset>
 
   <fieldset data-show="run">
-    <div class="grid"><div class="f"><label for="f_run">Run</label><select id="f_run"></select></div></div>
-    <span class="label" style="display:block;margin:12px 0 8px">Car</span>
-    <div class="picks" id="carPicks"></div>
+    <div class="grid"><div class="f"><label for="f_run">Run</label><select id="f_run"></select></div><div class="f"><label for="f_car">Car</label><select id="f_car"></select></div></div>
   </fieldset>
 
   <fieldset data-show="work">
@@ -671,7 +669,7 @@ function rowHTML(e){
 
 /* ---------- entry form ---------- */
 let editing=null;      // entry object being edited
-const FIELDS=["time","run","lane","uv","solar","cc","air","track","slLoc","slKeg","slSticky","k10","push","k60","k80","k125","sticky","k330","nate","et","mph","notes"];
+const FIELDS=["time","run","car","lane","uv","solar","cc","air","track","slLoc","slKeg","slSticky","k10","push","k60","k80","k125","sticky","k330","nate","et","mph","notes"];
 function fill(sel,opts){sel.innerHTML=opts.map(o=>`<option value="${esc(o)}">${o||"—"}</option>`).join("")}
 function picks(el,opts,current,onPick){
   el.innerHTML=opts.map(o=>`<button type="button" class="pick" aria-pressed="${o===current}" data-v="${esc(o)}">${esc(o)}</button>`).join("");
@@ -686,9 +684,10 @@ function openForm(type,entry){
   $("formTitle").textContent=(entry?"Edit ":"New ")+TYPE_NAME[type].toLowerCase();
   document.querySelectorAll("#form [data-show]").forEach(el=>el.hidden=!el.dataset.show.split(" ").includes(type));
   fill($("f_run"),RUNS);
+  // every car: the Settings list, then the full class list, plus whatever this run already has
+  fill($("f_car"),[...new Set(["",...list(cfg.cars),...list(DEF.cars),...(has(editing.car)?[editing.car]:[])])]);
   FIELDS.forEach(f=>{const el=$("f_"+f);if(el){el.value=editing[f]??"";el.classList.remove("auto")}});
   picks($("lanePicks"),LANES.filter(Boolean),editing.lane||"",v=>{$("f_lane").value=v});   // tap a lane; tap again to clear
-  picks($("carPicks"),list(cfg.cars),editing.car,v=>editing.car=v);
   picks($("workPicks"),list(cfg.work),editing.work,v=>editing.work=v);
   document.querySelectorAll("#form [data-grade]").forEach(el=>{const k=el.dataset.grade;picks(el,GRADES,editing[k],v=>editing[k]=v)});
   $("notePicks").innerHTML=list(cfg.notes).map(n=>`<button type="button" class="pick" data-n="${esc(n)}">${esc(n)}</button>`).join("");
