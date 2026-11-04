@@ -381,7 +381,7 @@ setTimeout(() => showView(view));   // after the graph code below has loaded
 const COLS = [
   { k: "time", h: "Time", g: "info", cls: "c-time" }, { k: "run", h: "Run", g: "info" }, { k: "lane", h: "Lane", g: "info" }, { k: "car", h: "Car", g: "info" },
   { k: "uv", h: "UV", g: "wx", hc: "h-blue" }, { k: "solar", h: "Solar", g: "wx", hc: "h-blue" }, { k: "cc", h: "CC", g: "wx", hc: "h-blue" }, { k: "air", h: "Air", g: "wx" }, { k: "track", h: "TRACK", g: "wx", hc: "h-red" },
-  { k: "slLoc", h: "Location", g: "sl" }, { k: "slKeg", h: "KEG", g: "sl" }, { k: "slStk", h: "Sticky", g: "sl" },
+  { k: "slLoc", h: "Location", g: "sl" }, { k: "slKeg", h: "KEG", g: "sl" }, { k: "slStk", h: "SL Sticky", g: "sl" },
   { k: "k10", h: "KEG", g: "t10" }, { k: "push", h: "Push", g: "t10" },
   { k: "k60", h: "KEG", g: "tk" }, { k: "k80", h: "KEG", g: "tk" },
   { k: "k125", h: "KEG", g: "bl" }, { k: "g125", h: "Etc.", g: "bl" },
@@ -390,7 +390,7 @@ const COLS = [
   { k: "notes", h: null, g: "notes", cls: "notes" },
 ];
 const GROUPS = [["Car/ Event INFO", "info", 4], ["Weather", "wx", 5], ["Starting Line", "sl", 3], ["10ft", "t10", 2], ["60ft", "tk", 1], ["80ft", "tk", 1],
-  ["125ft", "bl", 2], ["Sticky", "stk", 1, true], ["330ft", "bl", 3], ["Notes", "notes", 1, true]];
+  ["125ft", "bl", 2], ["TP Sticky", "stk", 1, true], ["330ft", "bl", 3], ["Notes", "notes", 1, true]];
 function carClass(v) { const s = String(v || "").toLowerCase();
   return s.includes("austin") ? "car-austin" : /\bpm\b/.test(s) ? "car-pm" : s.includes("matt") ? "car-matt" : s.includes("scrape") ? "car-scrape"
     : s.includes("spray") ? "car-spray" : s.includes("prep") ? "car-prep" : s.includes("delay") ? "car-delay" : ""; }
@@ -420,7 +420,7 @@ const G_PANELS = [
   { title: "UV index", unit: "", series: [{ k: "uv", name: "UV", c: "--s7" }] },
   { title: "KEG", unit: "", lane: true, series: [{ k: "slKeg", name: "SL", c: "--s1" }, { k: "k10", name: "10ft", c: "--s2" }, { k: "k60", name: "60ft", c: "--s3" },
     { k: "k80", name: "80ft", c: "--s4" }, { k: "k125", name: "125ft", c: "--s5" }, { k: "k330", name: "330ft", c: "--s6" }] },
-  { title: "Sticky", unit: "", lane: true, series: [{ k: "slSticky", name: "SL Sticky", c: "--s1" }, { k: "sticky", name: "Sticky", c: "--s8" }] },
+  { title: "SL Sticky / TP Sticky", unit: "", lane: true, series: [{ k: "slSticky", name: "SL Sticky", c: "--s1" }, { k: "sticky", name: "TP Sticky", c: "--s8" }] },
   { title: "Push (10 ft)", unit: "", lane: true, series: [{ k: "push", name: "Push", c: "--s3" }] },
   { title: "Nate", unit: "", lane: true, series: [{ k: "nate", name: "Nate", c: "--s6" }] },
 ];
@@ -512,7 +512,7 @@ function zipStore(files) {
 }
 const xesc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])).replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
 const colName = i => String.fromCharCode(65 + i);
-const XL_HEAD = ["Time","Run","Lane","Car","UV","Solar","CC","Air","Track","SL Location","SL KEG","SL Sticky","10ft KEG","Push","60ft KEG","80ft KEG","125ft KEG","125ft Etc.","Sticky","330ft KEG","330ft Etc.","Nate","Notes"];
+const XL_HEAD = ["Time","Run","Lane","Car","UV","Solar","CC","Air","Track","SL Location","SL KEG","SL Sticky","10ft KEG","Push","60ft KEG","80ft KEG","125ft KEG","125ft Etc.","TP Sticky","330ft KEG","330ft Etc.","Nate","Notes"];
 function cellXML(ref, v, s) { if (v === "" || v == null) return `<c r="${ref}"${s ? ` s="${s}"` : ""}/>`;
   if (typeof v === "number") return `<c r="${ref}"${s ? ` s="${s}"` : ""}><v>${v}</v></c>`;
   return `<c r="${ref}" t="inlineStr"${s ? ` s="${s}"` : ""}><is><t xml:space="preserve">${xesc(v)}</t></is></c>`; }

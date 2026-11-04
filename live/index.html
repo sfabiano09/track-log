@@ -579,7 +579,7 @@ function message(e){
   if(has(e.k60))k.push("60' "+e.k60);
   if(has(e.k80))k.push("80' "+e.k80);
   if(has(e.k125)||has(e.g125))k.push("125' "+[e.k125,e.g125].filter(has).join(" "));
-  if(has(e.sticky))k.push("Sticky "+e.sticky);
+  if(has(e.sticky))k.push("TP Sticky "+e.sticky);
   if(has(e.k330)||has(e.g330))k.push("330' "+[e.k330,e.g330].filter(has).join(" "));
   if(has(e.nate))k.push("Nate "+e.nate);
   if(k.length)L.push(k.join(" · "));
@@ -1091,7 +1091,7 @@ const G_PANELS=[
   {title:"UV index",unit:"",series:[{k:"uv",name:"UV",c:"--s7"}]},
   {title:"KEG",unit:"",lane:true,series:[{k:"slKeg",name:"SL",c:"--s1"},{k:"k10",name:"10ft",c:"--s2"},{k:"k60",name:"60ft",c:"--s3"},
     {k:"k80",name:"80ft",c:"--s4"},{k:"k125",name:"125ft",c:"--s5"},{k:"k330",name:"330ft",c:"--s6"}]},
-  {title:"Sticky",unit:"",lane:true,series:[{k:"slSticky",name:"SL Sticky",c:"--s1"},{k:"sticky",name:"Sticky",c:"--s8"}]},
+  {title:"SL Sticky / TP Sticky",unit:"",lane:true,series:[{k:"slSticky",name:"SL Sticky",c:"--s1"},{k:"sticky",name:"TP Sticky",c:"--s8"}]},
   {title:"Push (10 ft)",unit:"",lane:true,series:[{k:"push",name:"Push",c:"--s3"}]},
   {title:"Nate",unit:"",lane:true,series:[{k:"nate",name:"Nate",c:"--s6"}]},
 ];
