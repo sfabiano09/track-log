@@ -403,7 +403,7 @@ legend{padding:0;margin-bottom:8px}
     <legend class="label">Track weather station</legend>
     <div class="f"><label for="s_wxUrl">Weather service address</label><input id="s_wxUrl" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://track-log-weather-….run.app" style="font-size:14px"></div>
     <div class="f" style="margin-top:8px"><label for="s_wxCode">Station code for this track</label><input id="s_wxCode" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="e.g. LVMS-DS" style="font-size:16px"></div>
-    <p class="help">Fills Air, Track and Solar from the weather station at the track, and UV and Cloud % from Tomorrow.io's readings for the track. No key needed on this phone.</p>
+    <p class="help">Fills Air and Solar from the weather station at the track, and UV and Cloud % from Tomorrow.io's readings for the track. No key needed on this phone.</p>
     <div class="confirm" style="margin-top:8px"><button class="btn note" type="button" id="testWx">Test weather</button></div>
     <div class="preview" id="testOut" hidden style="margin-top:8px"></div>
   </fieldset>
@@ -667,7 +667,7 @@ async function getStation(dateISO,hm){
 // One line saying where the station's values (what) came from and how old the reading is.
 function stationText(s,past,what){
   if(s.none||s.sourceMs==null)return "No station reading for "+(past?"that time":"the last 3 hours");
-  what=what||(s.track!=null?"Air, Track and Solar":"Air and Solar");
+  what=what||"Air and Solar";
   const from=s.source==="TomorrowIO"?"the track's Tomorrow.io feed (no station reporting)":"the "+s.source+" station";
   const d=new Date(s.sourceMs),age=Math.round((Date.now()-s.sourceMs)/60e3);
   return what+" from "+from+", "+(past?"taken "+time12(String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0")):age<1?"just now":age+" min old");
@@ -757,12 +757,12 @@ async function pullWeather(auto){
   const tv=t.value,stn=s.value,reading=!!(stn&&stn.sourceMs!=null),w={},src={},msgs=[];
   const put=(k,v,from)=>{if(v!=null&&v!==""){w[k]=v;src[k]=from}},rnd=v=>v==null?null:Math.round(v);
   if(tv)["uv","solar","cc","air"].forEach(k=>put(k,tv[k],"tio"));
-  if(reading){put("air",rnd(stn.air),"stn");put("track",rnd(stn.track),"stn");put("solar",rnd(stn.solar),"stn")}
+  if(reading){put("air",rnd(stn.air),"stn");put("solar",rnd(stn.solar),"stn")}   // track temp is never pulled: it's read with the IR gun
   if(stn&&!stn.none){put("uv",stn.uv,"sky");put("cc",rnd(stn.cloudCover),"sky")}
-  ["uv","solar","cc","air","track"].forEach(k=>{const el=$("f_"+k);if(has(w[k])&&(!auto||!has(el.value))){el.value=w[k];el.classList.add("auto")}});
+  ["uv","solar","cc","air"].forEach(k=>{const el=$("f_"+k);if(has(w[k])&&(!auto||!has(el.value))){el.value=w[k];el.classList.add("auto")}});
   // "Air, Track and Solar": the fields a source filled, in form order.
   const NAME={air:"Air",track:"Track",solar:"Solar",uv:"UV",cc:"Cloud %"};
-  const named=from=>{const a=["air","track","solar","uv","cc"].filter(k=>src[k]===from).map(k=>NAME[k]);return a.length<2?a.join(""):a.slice(0,-1).join(", ")+" and "+a[a.length-1]};
+  const named=from=>{const a=["air","solar","uv","cc"].filter(k=>src[k]===from).map(k=>NAME[k]);return a.length<2?a.join(""):a.slice(0,-1).join(", ")+" and "+a[a.length-1]};
   if(s.status==="rejected")msgs.push("Weather station: "+wxErr(s.reason,"the weather service"));
   else if(stn){
     if(!reading||named("stn"))msgs.push(stationText(stn,past,named("stn")));
@@ -1267,7 +1267,7 @@ $("testWx").onclick=async()=>{readSettings();const out=$("testOut");out.hidden=f
   if(s.status==="rejected")L.push("Weather station: "+wxErr(s.reason,"the weather service"));
   else if(!s.value)L.push("Weather station: add the service address and this track's code");
   else{const v=s.value;
-    if(v.sourceMs!=null)L.push(`Weather station: Air ${Math.round(v.air)}°F · Track ${v.track!=null?Math.round(v.track)+"°F":"none"} · Solar ${Math.round(v.solar)}`,stationText(v,false));
+    if(v.sourceMs!=null)L.push(`Weather station: Air ${Math.round(v.air)}°F · Solar ${Math.round(v.solar)}`,stationText(v,false));
     else L.push("Weather station: no reading in the last 3 hours");
     L.push(v.uv!=null||v.cloudCover!=null
       ?`Weather service, from Tomorrow.io: UV ${v.uv??"none"} · Cloud ${v.cloudCover!=null?Math.round(v.cloudCover)+"%":"none"}`
