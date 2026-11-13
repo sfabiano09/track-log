@@ -400,11 +400,18 @@ legend{padding:0;margin-bottom:8px}
   </fieldset>
 
   <fieldset>
-    <legend class="label">Tomorrow.io</legend>
-    <div class="f"><label for="s_key">API key</label><input id="s_key" autocomplete="off" autocapitalize="off" spellcheck="false" style="font-size:16px"></div>
+    <legend class="label">Track weather station</legend>
+    <div class="f"><label for="s_wxUrl">Weather service address</label><input id="s_wxUrl" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://track-log-weather-….run.app" style="font-size:14px"></div>
+    <div class="f" style="margin-top:8px"><label for="s_wxCode">Station code for this track</label><input id="s_wxCode" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="e.g. LVMS-DS" style="font-size:16px"></div>
+    <p class="help">Fills Air, Track and Solar from the weather station at the track, and UV and Cloud % from Tomorrow.io's readings for the track. No key needed on this phone.</p>
     <div class="confirm" style="margin-top:8px"><button class="btn note" type="button" id="testWx">Test weather</button></div>
     <div class="preview" id="testOut" hidden style="margin-top:8px"></div>
-    <p class="help">The key stays on this phone. It is never saved anywhere else.</p>
+  </fieldset>
+
+  <fieldset>
+    <legend class="label">Tomorrow.io (backup, optional)</legend>
+    <div class="f"><label for="s_key">API key</label><input id="s_key" autocomplete="off" autocapitalize="off" spellcheck="false" style="font-size:16px"></div>
+    <p class="help">Only needed for tracks without a station code. The key stays on this phone.</p>
   </fieldset>
 
   <fieldset hidden>
@@ -513,6 +520,7 @@ const DEF = {
   work:"Spray, Scrape, Prep, Delay",
   notes:"Drag only, 660' - WB, 1320' - 40', 57' - WB, 85' - WB, Light haze, Light cloud"
 };
+const WX_CODES = {"Las Vegas":"LVMS-DS","Pomona":"Pomona"}; // RaceRS gateway weather codes, case-sensitive; Settings can add or change them
 const TYPE_NAME = {run:"Run",track:"Track",weather:"Weather",work:"Work"};
 const DAY3 = ["SUN","MON","TUE","WED","THURS","FRI","SAT"];
 
@@ -524,7 +532,7 @@ const store = {
 let entries = [];   // filled live from the team database (see the module script at the end)
 // settings: start from the original app's settings the first time, then keep our own copy
 if(!store.get("tl2.cfg",null)){const old=store.get("tl.cfg",{});store.set("tl2.cfg",{track:old.track,lat:old.lat,lon:old.lon,key:old.key,phones:old.phones,cars:old.cars,work:old.work,notes:old.notes,coords:old.coords})}
-let cfg = Object.assign({track:"St. Louis",lat:null,lon:null,key:"",phones:"",cars:DEF.cars,work:DEF.work,notes:DEF.notes,coords:{},autoCopy:false}, store.get("tl2.cfg",{}));
+let cfg = Object.assign({track:"St. Louis",lat:null,lon:null,key:"",wxUrl:"https://track-log-weather-xhawhaxjpq-uk.a.run.app",phones:"",cars:DEF.cars,work:DEF.work,notes:DEF.notes,coords:{},autoCopy:false}, store.get("tl2.cfg",{}));
 cfg.autoCopy=false;
 let curDate = todayISO();
 
@@ -609,11 +617,15 @@ async function tioFetch(lat,lon,fields,timeISO){
   if(!iv||!iv.length)throw new Error("No weather came back for that time.");
   return iv[0].values;
 }
+// The entry's moment, or null for "now" when it is within half an hour of now.
+function wxWhen(dateISO,hm){
+  if(dateISO&&hm){const d=new Date(dateISO+"T"+hm+":00");if(Math.abs(Date.now()-d.getTime())>30*60e3)return d.toISOString();}
+  return null;
+}
 async function getWeather(dateISO,hm){
   if(!cfg.key)throw new Error("Add your Tomorrow.io key in Settings first.");
   const c=trackCoords(cfg.track);if(!c)throw new Error("Set this track's location in Settings.");
-  let when=null;
-  if(dateISO&&hm){const d=new Date(dateISO+"T"+hm+":00");if(Math.abs(Date.now()-d.getTime())>30*60e3)when=d.toISOString();}
+  const when=wxWhen(dateISO,hm);
   const fields=["temperature","cloudCover","uvIndex","solarGHI"];
   let v, solarOk=true;
   try{v=await tioFetch(c.lat,c.lon,fields,when)}
@@ -629,6 +641,38 @@ async function getWeather(dateISO,hm){
     solarOk, past:!!when
   };
 }
+
+/* ---------- weather station at the track (RaceRS gateway, through the Track Log weather service) ---------- */
+// A blank saved code falls back to the built-in one, so a track saved before it had a code still gets it.
+// A saved code that differs from the built-in one only in case (an older version saved codes in capitals)
+// gets the built-in spelling, since the gateway's codes are case-sensitive.
+function wxCode(track){
+  const saved=(cfg.wxCodes||{})[track],built=WX_CODES[track];
+  if(saved&&built&&saved.toLowerCase()===built.toLowerCase())return built;
+  return saved||built||"";
+}
+function stationReady(){return !!(cfg.wxUrl&&wxCode(cfg.track))}
+// null when not set up; {none:true} when the track has no reading for that time. Otherwise the reading,
+// with uv and cloudCover from the gateway's Tomorrow.io readings (null where there are none).
+async function getStation(dateISO,hm){
+  if(!stationReady())return null;
+  const when=wxWhen(dateISO,hm);
+  const p=new URLSearchParams({track:wxCode(cfg.track)});if(when)p.set("at",new Date(when).getTime());
+  const r=await fetch(cfg.wxUrl.replace(/\/+$/,"")+"/weather?"+p.toString());
+  if(r.status===204)return {none:true};
+  let j=null;try{j=await r.json()}catch(_){}
+  if(!r.ok)throw new Error((j&&j.error)||("The weather service answered "+r.status+"."));
+  return j;
+}
+// One line saying where the station's values (what) came from and how old the reading is.
+function stationText(s,past,what){
+  if(s.none||s.sourceMs==null)return "No station reading for "+(past?"that time":"the last 3 hours");
+  what=what||(s.track!=null?"Air, Track and Solar":"Air and Solar");
+  const from=s.source==="TomorrowIO"?"the track's Tomorrow.io feed (no station reporting)":"the "+s.source+" station";
+  const d=new Date(s.sourceMs),age=Math.round((Date.now()-s.sourceMs)/60e3);
+  return what+" from "+from+", "+(past?"taken "+time12(String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0")):age<1?"just now":age+" min old");
+}
+function wxErr(err,name){return err instanceof TypeError?"No connection to "+name:String(err.message||err)}
 
 /* ---------- main screen ---------- */
 function renderNowPanel(){
@@ -697,22 +741,38 @@ function openForm(type,entry){
   $("delArea").innerHTML=`<button class="btn danger" type="button" id="delEntry">Delete entry</button>`;
   if(entry){$("msgPreview").textContent=message(editing);showTexted()}
   $("form").hidden=false;$("form").scrollTop=0;document.body.style.overflow="hidden";
-  if(!entry&&(type==="run"||type==="weather")&&cfg.key)pullWeather(true);
+  if(!entry&&(type==="run"||type==="track")&&(cfg.key||stationReady()))pullWeather(true);
 }
 function readForm(){FIELDS.forEach(f=>{const el=$("f_"+f);if(el)editing[f]=el.value.trim()})}
 function closeForm(){$("form").hidden=true;document.body.style.overflow="";editing=null}
 async function pullWeather(auto){
   const st=$("wxStatus");st.className="status";st.textContent="Getting weather…";
   readForm();
-  try{
-    const w=await getWeather(editing.date,editing.time);
-    ["uv","solar","cc","air"].forEach(k=>{const el=$("f_"+k);if(has(w[k])&&(!auto||!has(el.value))){el.value=w[k];el.classList.add("auto")}});
-    st.className="status ok";
-    st.textContent=(w.past?"Weather for that hour":"Current weather")+" pulled from Tomorrow.io"+(w.solarOk?".":". Solar isn't available on this key, so type it in.");
-  }catch(err){
-    st.className="status err";
-    st.textContent = err instanceof TypeError ? "No connection to Tomorrow.io. Type the weather in, or tap Pull weather again once you have signal." : String(err.message||err);
+  if(!cfg.key&&!stationReady()){st.className="status err";st.textContent="This track has no weather station code yet. Add one in Settings, or type the weather in.";return}
+  const id=editing.id,date=editing.date,hm=editing.time,past=!!wxWhen(date,hm);
+  const [t,s]=await Promise.allSettled([cfg.key?getWeather(date,hm):null,getStation(date,hm)]);
+  if(!editing||editing.id!==id)return; // the form was closed while waiting
+  // Each value from the best source that has it. The station measures at the track, so its Air and
+  // Solar win over Tomorrow.io's model; the service's UV and Cloud % win over this phone's own key.
+  const tv=t.value,stn=s.value,reading=!!(stn&&stn.sourceMs!=null),w={},src={},msgs=[];
+  const put=(k,v,from)=>{if(v!=null&&v!==""){w[k]=v;src[k]=from}},rnd=v=>v==null?null:Math.round(v);
+  if(tv)["uv","solar","cc","air"].forEach(k=>put(k,tv[k],"tio"));
+  if(reading){put("air",rnd(stn.air),"stn");put("track",rnd(stn.track),"stn");put("solar",rnd(stn.solar),"stn")}
+  if(stn&&!stn.none){put("uv",stn.uv,"sky");put("cc",rnd(stn.cloudCover),"sky")}
+  ["uv","solar","cc","air","track"].forEach(k=>{const el=$("f_"+k);if(has(w[k])&&(!auto||!has(el.value))){el.value=w[k];el.classList.add("auto")}});
+  // "Air, Track and Solar": the fields a source filled, in form order.
+  const NAME={air:"Air",track:"Track",solar:"Solar",uv:"UV",cc:"Cloud %"};
+  const named=from=>{const a=["air","track","solar","uv","cc"].filter(k=>src[k]===from).map(k=>NAME[k]);return a.length<2?a.join(""):a.slice(0,-1).join(", ")+" and "+a[a.length-1]};
+  if(s.status==="rejected")msgs.push("Weather station: "+wxErr(s.reason,"the weather service"));
+  else if(stn){
+    if(!reading||named("stn"))msgs.push(stationText(stn,past,named("stn")));
+    if(named("sky"))msgs.push(named("sky")+" from Tomorrow.io");
   }
+  if(t.status==="rejected")msgs.push("Tomorrow.io: "+wxErr(t.reason,"Tomorrow.io"));
+  else if(tv&&named("tio"))msgs.push(named("tio")+" from Tomorrow.io"+(tv.solarOk||has(w.solar)?"":". Solar isn't available on this key, so type it in"));
+  const got=Object.keys(w).length>0;
+  st.className="status "+(got?"ok":"err");
+  st.textContent=(got?(past?"Weather for that time pulled. ":"Current weather pulled. "):"")+msgs.map(m=>m.replace(/\.$/,"")).join(". ")+"."+(got?"":" Type the weather in"+(t.status==="rejected"||s.status==="rejected"?", or tap Pull weather again once you have signal.":"."));
 }
 function saveEntry(andText){
   readForm();
@@ -751,6 +811,7 @@ function openSettings(){
   fill($("s_track"),TRACKS.map(t=>t[0]));$("s_track").value=cfg.track;
   setCoordFields();
   $("s_key").value=cfg.key;renderPhones(list(cfg.phones));
+  $("s_wxUrl").value=cfg.wxUrl||"";$("s_wxCode").value=wxCode(cfg.track);
   $("s_xlLink").value=(cfg.xlLinks||{})[cfg.track]||"";$("s_autoCopy").checked=cfg.autoCopy!==false;
   $("s_msClient").value=cfg.msClient||"";$("s_msTenant").value=cfg.msTenant||"";renderSp();
   $("s_cars").value=cfg.cars;$("s_work").value=cfg.work;$("s_notes").value=cfg.notes;
@@ -764,6 +825,10 @@ function readSettings(){
   if(isFinite(lat)&&isFinite(lon)){const def=TRACKS.find(t=>t[0]===cfg.track);
     if(!def||Math.abs(def[1]-lat)>1e-6||Math.abs(def[2]-lon)>1e-6){cfg.coords=cfg.coords||{};cfg.coords[cfg.track]={lat,lon}}}
   cfg.key=$("s_key").value.trim();
+  cfg.wxUrl=$("s_wxUrl").value.trim();
+  // Kept as typed: the gateway's codes are case-sensitive. Only a code that differs from the built-in one is saved.
+  cfg.wxCodes=cfg.wxCodes||{};const wc=$("s_wxCode").value.trim();
+  if(wc&&wc.toLowerCase()!==(WX_CODES[cfg.track]||"").toLowerCase())cfg.wxCodes[cfg.track]=wc;else delete cfg.wxCodes[cfg.track];
   cfg.phones=[...document.querySelectorAll("#phoneList input")].map(i=>i.value.trim()).filter(Boolean).join(", ");
   const mc=$("s_msClient").value.trim(),mt=$("s_msTenant").value.trim();
   if(mc!==(cfg.msClient||"")||mt!==(cfg.msTenant||""))msalApp=null;
@@ -1173,7 +1238,7 @@ document.querySelector(".g-filters").addEventListener("click",e=>{const b=e.targ
 $("openSettings").onclick=openSettings;
 $("closeSettings").onclick=()=>{readSettings();$("settings").hidden=true;document.body.style.overflow="";render()};
 $("saveSettings").onclick=$("closeSettings").onclick;
-$("s_track").onchange=()=>{setCoordFields();$("s_xlLink").value=(cfg.xlLinks||{})[$("s_track").value]||"";renderSp()};
+$("s_track").onchange=()=>{setCoordFields();$("s_xlLink").value=(cfg.xlLinks||{})[$("s_track").value]||"";$("s_wxCode").value=wxCode($("s_track").value);renderSp()};
 $("msSignIn").onclick=async()=>{readSettings();msalApp=null;
   if(!cfg.msClient||!cfg.msTenant){toast("Add the Client ID and Tenant ID first.");return}
   try{await msToken(true);renderSp();toast("Signed in")}catch(e){$("msStatus").className="status err";$("msStatus").textContent=friendlyErr(e)}};
@@ -1194,9 +1259,21 @@ $("useLoc").onclick=()=>{
   navigator.geolocation.getCurrentPosition(p=>{$("s_lat").value=p.coords.latitude.toFixed(4);$("s_lon").value=p.coords.longitude.toFixed(4);toast("Location set for "+$("s_track").value)},
     ()=>toast("Location is off. Allow it for Safari in iPhone Settings, or type the numbers in."),{enableHighAccuracy:true,timeout:15000});
 };
-$("testWx").onclick=async()=>{readSettings();const out=$("testOut");out.hidden=false;out.textContent="Asking Tomorrow.io…";
-  try{const w=await getWeather();out.textContent=`${cfg.track} right now\nUV ${w.uv}\nSolar ${w.solarOk?w.solar:"not available on this key"}\nCloud cover ${w.cc}%\nAir ${w.air}°F`}
-  catch(err){out.textContent=err instanceof TypeError?"Couldn't reach Tomorrow.io. Check your signal and try again.":"Tomorrow.io said: "+(err.message||err)}};
+$("testWx").onclick=async()=>{readSettings();const out=$("testOut");out.hidden=false;out.textContent="Asking for the weather…";
+  const [t,s]=await Promise.allSettled([cfg.key?getWeather():null,getStation()]);
+  const L=[cfg.track+" right now"];
+  if(t.value){const w=t.value;L.push(`Tomorrow.io: UV ${w.uv} · Solar ${w.solarOk?w.solar:"not on this key"} · Cloud ${w.cc}% · Air ${w.air}°F`)}
+  else L.push(t.status==="rejected"?(t.reason instanceof TypeError?"Couldn't reach Tomorrow.io. Check your signal.":"Tomorrow.io said: "+(t.reason.message||t.reason)):"Tomorrow.io backup: no key (not needed with a station)");
+  if(s.status==="rejected")L.push("Weather station: "+wxErr(s.reason,"the weather service"));
+  else if(!s.value)L.push("Weather station: add the service address and this track's code");
+  else{const v=s.value;
+    if(v.sourceMs!=null)L.push(`Weather station: Air ${Math.round(v.air)}°F · Track ${v.track!=null?Math.round(v.track)+"°F":"none"} · Solar ${Math.round(v.solar)}`,stationText(v,false));
+    else L.push("Weather station: no reading in the last 3 hours");
+    L.push(v.uv!=null||v.cloudCover!=null
+      ?`Weather service, from Tomorrow.io: UV ${v.uv??"none"} · Cloud ${v.cloudCover!=null?Math.round(v.cloudCover)+"%":"none"}`
+      :"Weather service: no UV or Cloud % (no Tomorrow.io readings for this track)");
+  }
+  out.textContent=L.join("\n")};
 $("copyBackup").onclick=()=>copyText(JSON.stringify({v:1,entries,cfg:Object.assign({},cfg,{key:""})}),"Backup copied (your API key is left out)");
 $("showRestore").onclick=()=>$("restoreArea").hidden=false;
 $("doRestore").onclick=()=>{try{const j=JSON.parse($("s_restore").value);if(!Array.isArray(j.entries))throw 0;
@@ -1211,7 +1288,7 @@ if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catc
 render();
 window.addEventListener("online",()=>syncNow());
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")syncNow()});
-if(!cfg.key)setTimeout(()=>toast("Open Settings to add your Tomorrow.io key and crew numbers."),600);
+if(!cfg.key&&!stationReady()&&!list(cfg.phones).length)setTimeout(()=>toast("Open Settings to set up the weather and crew numbers."),600);
 </script>
 <script type="module">
 import { login, logout, watchRole, watchEntries, saveEntry, deleteEntry, eventIdFor, legacyEventIdFor, saveHistoryRun, deleteHistoryRun, watchHistory } from "../fb.js";
