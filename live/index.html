@@ -658,7 +658,11 @@ async function getStation(dateISO,hm){
   if(!stationReady())return null;
   const when=wxWhen(dateISO,hm);
   const p=new URLSearchParams({track:wxCode(cfg.track)});if(when)p.set("at",new Date(when).getTime());
-  const r=await fetch(cfg.wxUrl.replace(/\/+$/,"")+"/weather?"+p.toString());
+  // give up after 15 seconds so a stuck request can be retried
+  const ac=new AbortController(),to=setTimeout(()=>ac.abort(),15000);
+  let r;try{r=await fetch(cfg.wxUrl.replace(/\/+$/,"")+"/weather?"+p.toString(),{signal:ac.signal})}
+  catch(e){throw e&&e.name==="AbortError"?new Error("The weather service took too long to answer."):e}
+  finally{clearTimeout(to)}
   if(r.status===204)return {none:true};
   let j=null;try{j=await r.json()}catch(_){}
   if(!r.ok)throw new Error((j&&j.error)||("The weather service answered "+r.status+"."));
@@ -750,8 +754,18 @@ async function pullWeather(auto){
   readForm();
   if(!cfg.key&&!stationReady()){st.className="status err";st.textContent="This track has no weather station code yet. Add one in Settings, or type the weather in.";return}
   const id=editing.id,date=editing.date,hm=editing.time,past=!!wxWhen(date,hm);
-  const [t,s]=await Promise.allSettled([cfg.key?getWeather(date,hm):null,getStation(date,hm)]);
+  let [t,s]=await Promise.allSettled([cfg.key?getWeather(date,hm):null,getStation(date,hm)]);
   if(!editing||editing.id!==id)return; // the form was closed while waiting
+  // Nothing usable (the service failed, or had no reading): wait a few seconds and try once more
+  const empty=()=>!t.value&&(s.status==="rejected"||!s.value||s.value.none);
+  if(empty()&&(stationReady()||cfg.key)){
+    st.textContent="No weather yet. Trying again…";
+    await new Promise(res=>setTimeout(res,4000));
+    if(!editing||editing.id!==id)return;
+    const [t2,s2]=await Promise.allSettled([cfg.key&&t.status==="rejected"?getWeather(date,hm):Promise.resolve(t.value),getStation(date,hm)]);
+    if(!editing||editing.id!==id)return;
+    t=t2;s=s2;
+  }
   // Each value from the best source that has it. The station measures at the track, so its Air and
   // Solar win over Tomorrow.io's model; the service's UV and Cloud % win over this phone's own key.
   const tv=t.value,stn=s.value,reading=!!(stn&&stn.sourceMs!=null),w={},src={},msgs=[];
